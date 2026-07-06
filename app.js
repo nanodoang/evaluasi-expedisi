@@ -102,7 +102,7 @@ async function loadList() {
 }
 
 function gradeColor(grade) {
-  return { A: COLORS.green, B: COLORS.teal, C: '#B8860B', D: COLORS.red }[grade] || COLORS.grey;
+  return { A: COLORS.green, B: COLORS.teal, C: 'B8860B', D: COLORS.red }[grade] || COLORS.grey;
 }
 
 function renderList(list, fromVal, toVal) {
@@ -114,7 +114,7 @@ function renderList(list, fromVal, toVal) {
   }
   container.innerHTML = list.map(item => `
     <div class="card" data-nama="${escapeHtml(item.ekspedisi)}" data-from="${fromVal}" data-to="${toVal}">
-      <div class="grade-badge" style="background:${gradeColor(item.grade)}">${item.grade || '-'}</div>
+      <div class="grade-badge" style="background:#${gradeColor(item.grade)}">${item.grade || '-'}</div>
       <div class="card-body">
         <div class="card-title">${escapeHtml(item.ekspedisi)}</div>
         <div class="card-sub">Mutu ${fmtPct(item.mutu)} · Distributor ${fmtPct(item.distributor)} · Reliability ${fmtPct(item.reliability)}</div>
@@ -189,7 +189,7 @@ function renderDetail(d) {
   document.getElementById('detailPeriode').textContent = periodeLabel(d.periode);
 
   const gradeBadge = document.getElementById('detailGradeBadge');
-  gradeBadge.style.background = gradeColor(r.grade);
+  gradeBadge.style.background = '#' + gradeColor(r.grade);
   gradeBadge.querySelector('span').textContent = r.grade || '-';
 
   setKpi('kMutu', 'tMutu', r.mutu.pct, r.mutu.target);
@@ -235,6 +235,8 @@ function setKpi(valId, targetId, pct, target) {
 }
 
 let chartInstances = {};
+if (window.Chart && window.ChartDataLabels) Chart.register(ChartDataLabels);
+
 function drawTrendChart(canvasId, monthly, target) {
   const ctx = document.getElementById(canvasId).getContext('2d');
   if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
@@ -246,14 +248,21 @@ function drawTrendChart(canvasId, monthly, target) {
     data: {
       labels,
       datasets: [
-        { label: 'Pencapaian (%)', data: values, backgroundColor: barColors, borderRadius: 4 },
+        { label: 'Pencapaian (%)', data: values, backgroundColor: barColors, borderRadius: 4,
+          datalabels: { anchor: 'end', align: 'top', color: '#1A2233', font: { weight: 'bold', size: 11 },
+            formatter: (v) => (v == null ? '-' : v.toFixed(2) + '%') } },
         { label: `Target (${target}%)`, data: labels.map(() => target), type: 'line',
-          borderColor: '#' + COLORS.grey, borderDash: [6, 4], pointRadius: 0, borderWidth: 1.5 }
+          borderColor: '#' + COLORS.grey, borderDash: [6, 4], pointRadius: 0, borderWidth: 1.5,
+          datalabels: { display: false } }
       ]
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: true, labels: { font: { size: 10 } } } },
+      layout: { padding: { top: 20 } },
+      plugins: {
+        legend: { display: true, labels: { font: { size: 10 } } },
+        datalabels: { display: true }
+      },
       scales: { y: { min: Math.max(0, Math.min(...values, target) - 5), max: 100 } }
     }
   });
@@ -271,6 +280,15 @@ function mockMonthly(hitArr, missArr, bulanArr) {
   });
 }
 
+const MISS_SAMPLES = [
+  { tujuan: 'PT. Triyanto Sukses Mandiri – CIAMIS (UF-A)', eta: '17 Apr 26', ata: 'B 9615 KRV', keterangan: 'Mobil trouble' },
+  { tujuan: 'CV. Tiga Saudara – YOGYAKARTA (UF-D)', eta: '7 Mei 26', ata: 'DK 8267 DM', keterangan: 'Mobil trouble' },
+  { tujuan: 'PT. Sedulur Sukses Sejahtera – BARABAI', eta: '2 Apr 26', ata: 'B 9021 TRC', keterangan: 'Ban pecah di jalan' },
+  { tujuan: 'CV. Berkah Jaya – SURABAYA', eta: '14 Mei 26', ata: 'L 8123 KJ', keterangan: 'Macet parah (banjir)' },
+  { tujuan: 'PT. Fonusa Distribusi – SEMARANG', eta: '28 Jun 26', ata: 'B 7744 UNF', keterangan: 'Terlambat muat di gudang asal' },
+  { tujuan: 'CV. Mitra Logistik – DENPASAR', eta: '9 Apr 26', ata: 'DK 1122 AB', keterangan: 'Kendala penyeberangan Ketapang-Gilimanuk' },
+];
+
 function buildMockDetail(nama, kategori, famMiss, distMiss) {
   const bulan = ['April', 'Mei', 'Juni'];
   const hitFam = [33, 34, 31], missFam = famMiss;
@@ -281,9 +299,14 @@ function buildMockDetail(nama, kategori, famMiss, distMiss) {
   const paMonthly = mockMonthly(hitPa, missPa, bulan);
   const famPct = avgPct(famMonthly), distPct = avgPct(distMonthly), paPct = avgPct(paMonthly);
   const total = Math.round((WEIGHTS.mutu * paPct + WEIGHTS.fam * famPct + WEIGHTS.distributor * distPct + WEIGHTS.reliability * paPct) * 100) / 100;
+  const totalMissCount = sumArr(famMiss) + sumArr(distMiss);
   const missDetail = [];
-  if (famMiss.some(m => m > 0) || distMiss.some(m => m > 0)) {
-    missDetail.push({ bulan: 'April', tujuan: 'PT. Contoh Distribusi – CIAMIS (UF-A)', eta: '17 Apr 26', ata: 'B 9615 KRV', keterangan: 'Mobil trouble' });
+  let seed = 0;
+  for (let i = 0; i < nama.length; i++) seed += nama.charCodeAt(i); // simple per-nama offset biar variatif
+  for (let i = 0; i < totalMissCount; i++) {
+    const sample = MISS_SAMPLES[(seed + i) % MISS_SAMPLES.length];
+    const bln = bulan[i % bulan.length];
+    missDetail.push({ bulan: bln, tujuan: sample.tujuan, eta: sample.eta, ata: sample.ata, keterangan: sample.keterangan });
   }
   return {
     ekspedisi: nama,
@@ -392,7 +415,7 @@ async function generatePptx(d) {
     s1.addText('LAPORAN EVALUASI KINERJA EKSPEDISI', { x: 0.7, y: 2.5, w: 11.5, h: 0.5, fontSize: 16, color: MINT, bold: true, charSpacing: 3, fontFace: 'Calibri', margin: 0 });
     s1.addText(d.ekspedisi, { x: 0.7, y: 3.0, w: 11.5, h: 1.2, fontSize: 54, color: WHITE, bold: true, fontFace: 'Cambria', margin: 0 });
     s1.addText(`Periode  •  ${periodeLabel(d.periode)}`, { x: 0.7, y: 4.2, w: 11.5, h: 0.5, fontSize: 18, color: 'E8EDF2', fontFace: 'Calibri', margin: 0 });
-    s1.addShape(pres.shapes.OVAL, { x: 10.6, y: 5.15, w: 1.6, h: 1.6, fill: { color: gradeColor(r.grade).length === 6 ? '#'+gradeColor(r.grade) : MINT }, line: { color: WHITE, width: 2 } });
+    s1.addShape(pres.shapes.OVAL, { x: 10.6, y: 5.15, w: 1.6, h: 1.6, fill: { color: gradeColor(r.grade) }, line: { color: WHITE, width: 2 } });
     s1.addText(r.grade || '-', { x: 10.6, y: 5.15, w: 1.6, h: 1.6, fontSize: 44, bold: true, color: NAVY, align: 'center', valign: 'middle', fontFace: 'Cambria', margin: 0 });
     s1.addText('GRADE', { x: 10.6, y: 6.85, w: 1.6, h: 0.3, fontSize: 11, color: 'E8EDF2', align: 'center', bold: true, charSpacing: 2, fontFace: 'Calibri', margin: 0 });
     s1.addText('PT. UNIFAM  —  Divisi Logistik & Transportasi', { x: 0.7, y: 6.85, w: 8, h: 0.3, fontSize: 11, color: 'D7DEE6', fontFace: 'Calibri', margin: 0 });
