@@ -535,6 +535,13 @@ async function generatePptx(d) {
     }
     footer(s7, 7);
 
+    // SLIDE 8: PENUTUP (sesuai template resmi "Terima Kasih")
+    let s8 = pres.addSlide();
+    s8.background = { color: WHITE };
+    s8.addImage({ data: LOGO_BIG_B64, x: 2.59, y: 2.02, w: 8.16, h: 3.13, sizing: { type: 'contain', w: 8.16, h: 3.13 } });
+    s8.addText('Terima Kasih', { x: 0, y: 5.35, w: W, h: 0.7, fontSize: 30, color: NAVY, bold: true, align: 'center', fontFace: 'Cambria', margin: 0 });
+    s8.addText('PT. UNIFAM  —  Divisi Logistik & Transportasi', { x: 0, y: 6.05, w: W, h: 0.4, fontSize: 12, color: GREY, align: 'center', fontFace: 'Calibri', margin: 0 });
+
     const fileName = `Evaluasi_Kinerja_${d.ekspedisi.replace(/\s+/g, '_')}_${Date.now()}.pptx`;
     await pres.writeFile({ fileName });
   } catch (e) {
