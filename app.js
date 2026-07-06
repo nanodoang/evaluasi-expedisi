@@ -109,6 +109,7 @@ function renderList(list, fromVal, toVal) {
   const container = document.getElementById('listContainer');
   if (!list || !list.length) {
     container.innerHTML = '<div class="empty">Tidak ada data ekspedisi pada periode ini.</div>';
+    populateExpedisiSelect([]);
     return;
   }
   container.innerHTML = list.map(item => `
@@ -126,7 +127,24 @@ function renderList(list, fromVal, toVal) {
   container.querySelectorAll('.card').forEach(card => {
     card.onclick = () => openDetail(card.dataset.nama, card.dataset.from, card.dataset.to);
   });
+
+  populateExpedisiSelect(list.map(item => item.ekspedisi), fromVal, toVal);
 }
+
+function populateExpedisiSelect(names, fromVal, toVal) {
+  const sel = document.getElementById('expedisiSelect');
+  sel.innerHTML = '<option value="">Pilih ekspedisi langsung...</option>' +
+    names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+  sel.dataset.from = fromVal || '';
+  sel.dataset.to = toVal || '';
+}
+
+document.getElementById('goExpedisiBtn').onclick = () => {
+  const sel = document.getElementById('expedisiSelect');
+  const nama = sel.value;
+  if (!nama) { alert('Pilih ekspedisi dulu dari daftar dropdown (muat data / data contoh dulu kalau dropdown masih kosong).'); return; }
+  openDetail(nama, sel.dataset.from, sel.dataset.to);
+};
 
 function fmtPct(v) { return v == null ? '-' : v.toFixed(1) + '%'; }
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
