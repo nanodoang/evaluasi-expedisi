@@ -4,22 +4,22 @@ const LOGO_SMALL_B64 = "image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAHACAYAAAD
 
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v8 (2026-07-06) — FIX AKAR MASALAH SEBENARNYA dari "PowerPoint
- *          found a problem" (v7 BELUM benar-benar fix, cuma memperbaiki
- *          gejala ZIP-nya, bukan sumbernya). Ternyata ini BUG BAWAAN
- *          pptxgenjs v3.12.0: [Content_Types].xml men-declare 1 Override
- *          slideMaster PER SLIDE (mis. slideMaster1.xml..slideMaster8.xml
- *          utk 8 slide), tapi pptxgenjs cuma benar-benar MENULIS 1 file
- *          (slideMaster1.xml) ke ZIP — 7 referensi sisanya "hantu" (nunjuk
- *          ke file yang gak ada). LibreOffice & python-pptx cuek soal ini,
- *          tapi PowerPoint asli strict ikut spek OPC dan langsung nolak.
- *          Sekarang saat re-zip, [Content_Types].xml dibersihkan dari semua
- *          <Override> yang PartName-nya tidak match file yang benar-benar
- *          ada di ZIP. Sudah diverifikasi: 0 referensi hantu, valid dibuka
- *          python-pptx & LibreOffice.
+ * VERSION: v9 (2026-07-06) — FITUR BARU (PPTX sementara di-pause, masih
+ *          "Repair" walau v8 sudah fix bug Content_Types.xml, perlu digali
+ *          lagi lebih dalam):
+ *          1. Tabel data mentah (Bulan|Hit|Miss|Plan|%) ditampilkan di bawah
+ *             tiap chart tren bulanan (FAM/Distributor/Reliability) — jadi
+ *             gak cuma diagram, angka aslinya juga kelihatan.
+ *          2. Ranking: di halaman detail sekarang ada kartu "Peringkat
+ *             Dibanding Ekspedisi Lain" yang nunjukkin urutan ke berapa dari
+ *             berapa ekspedisi untuk komponen Tiba di Distributor (DOT) dan
+ *             Reliability (Pemenuhan Armada) — dihitung dari daftar lengkap
+ *             yang sudah di-load sebelumnya.
  * VERSION HISTORY:
- *   v7 — rewrite writeFile jadi re-zip manual (fix folder kosong & kompresi,
- *        tapi ternyata belum menyentuh akar masalah sebenarnya di atas)
+ *   v8 — fix Content_Types.xml phantom slideMaster refs (bug bawaan
+ *        pptxgenjs) — TERNYATA MASIH REPAIR di real-world test, root cause
+ *        blm ketemu 100%, di-pause dulu
+ *   v7 — rewrite writeFile jadi re-zip manual (fix folder kosong & kompresi)
  *   v6 — fix null values in chart + dynamic axis scale + long name overlap
  *   v5 — fix timezone bug fmtDate() + cache-busting fetch()
  *   v4 — ganti jalur utama fetch data dari JSONP ke fetch() langsung
@@ -45,6 +45,7 @@ const WEIGHTS = { mutu: 0.10, fam: 0.20, distributor: 0.50, reliability: 0.20 };
 
 let apiUrl = localStorage.getItem('evalEkspedisi_apiUrl') || '';
 let currentDetail = null;
+let currentList = []; // daftar lengkap semua ekspedisi (dari action=list terakhir), dipakai utk hitung ranking
 let jsonpCounter = 0;
 
 // ---------------------------------------------------------------------------
@@ -196,6 +197,7 @@ function gradeColor(grade) {
 }
 
 function renderList(list, fromVal, toVal) {
+  currentList = list || [];
   const container = document.getElementById('listContainer');
   if (!list || !list.length) {
     container.innerHTML = '<div class="empty">Tidak ada data ekspedisi pada periode ini.</div>';
@@ -291,6 +293,12 @@ function renderDetail(d) {
   drawTrendChart('chartDist', d.bulanan.distributor, r.distributor.target);
   drawTrendChart('chartRel', d.bulanan.reliability, r.reliability.target);
 
+  fillDataTable('tableFam', d.bulanan.fam);
+  fillDataTable('tableDist', d.bulanan.distributor);
+  fillDataTable('tableRel', d.bulanan.reliability);
+
+  renderRanking(d.ekspedisi);
+
   const tbody = document.querySelector('#missTable tbody');
   const missEmpty = document.getElementById('missEmpty');
   if (d.missDetail && d.missDetail.length) {
@@ -308,6 +316,65 @@ function renderDetail(d) {
     document.getElementById('missTable').style.display = 'none';
     missEmpty.style.display = 'block';
   }
+}
+
+function fillDataTable(tableId, monthly) {
+  const tbody = document.querySelector(`#${tableId} tbody`);
+  if (!monthly || !monthly.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--grey);">Tidak ada data</td></tr>';
+    return;
+  }
+  let sumHit = 0, sumMiss = 0, sumPlan = 0;
+  const rows = monthly.map(m => {
+    sumHit += m.hit || 0; sumMiss += m.miss || 0; sumPlan += m.plan || 0;
+    return `<tr>
+      <td>${escapeHtml(m.bulan)}</td>
+      <td>${m.hit}</td>
+      <td style="color:${m.miss > 0 ? '#' + COLORS.red : 'inherit'};font-weight:${m.miss > 0 ? '700' : '400'};">${m.miss}</td>
+      <td>${m.plan}</td>
+      <td style="font-weight:700;">${m.pct != null ? m.pct.toFixed(2) + '%' : '-'}</td>
+    </tr>`;
+  }).join('');
+  const totalPct = sumPlan ? ((sumHit / sumPlan) * 100).toFixed(2) + '%' : '-';
+  tbody.innerHTML = rows + `<tr style="background:var(--light);font-weight:700;">
+    <td>Jumlah</td><td>${sumHit}</td><td>${sumMiss}</td><td>${sumPlan}</td><td>${totalPct}</td>
+  </tr>`;
+}
+
+// Hitung ranking 1 ekspedisi dibanding semua ekspedisi lain di currentList,
+// berdasarkan field tertentu (distributor / reliability), diurutkan tertinggi dulu.
+function computeRank(list, ekspedisiName, field) {
+  const valid = list.filter(item => item[field] != null);
+  if (!valid.length) return null;
+  const sorted = [...valid].sort((a, b) => b[field] - a[field]);
+  const idx = sorted.findIndex(item => item.ekspedisi === ekspedisiName);
+  if (idx === -1) return null;
+  return { rank: idx + 1, total: sorted.length, value: sorted[idx][field] };
+}
+
+function renderRanking(ekspedisiName) {
+  const container = document.getElementById('rankingContent');
+  if (!currentList || !currentList.length) {
+    container.innerHTML = '<div style="color:var(--grey);font-size:13px;">Muat daftar semua ekspedisi dulu (lewat halaman utama) supaya ranking bisa dihitung.</div>';
+    return;
+  }
+  const rankDist = computeRank(currentList, ekspedisiName, 'distributor');
+  const rankRel = computeRank(currentList, ekspedisiName, 'reliability');
+
+  function badge(label, rankInfo) {
+    if (!rankInfo) return `<div class="rank-badge"><div class="rank-label">${label}</div><div class="rank-note">Data tidak tersedia</div></div>`;
+    const isTop = rankInfo.rank <= Math.ceil(rankInfo.total * 0.25);
+    const color = isTop ? COLORS.green : (rankInfo.rank > rankInfo.total * 0.75 ? COLORS.red : COLORS.teal);
+    return `<div class="rank-badge">
+      <div class="rank-label">${label}</div>
+      <div class="rank-value" style="color:#${color};">#${rankInfo.rank} <b>dari ${rankInfo.total} ekspedisi</b></div>
+      <div class="rank-note">Skor: ${rankInfo.value.toFixed(2)}%</div>
+    </div>`;
+  }
+
+  container.innerHTML =
+    badge('Tiba di Distributor (DOT)', rankDist) +
+    badge('Reliability (Pemenuhan Armada)', rankRel);
 }
 
 function periodeLabel(p) {

@@ -57,6 +57,12 @@ main{padding:14px 12px 60px;max-width:920px;margin:0 auto;}
 .detail-grade span{font-size:24px;line-height:1;}
 .detail-grade small{font-size:9px;letter-spacing:1px;}
 .kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
+.rank-badge{flex:1;min-width:150px;background:var(--light);border-radius:10px;padding:12px;}
+.rank-badge .rank-label{font-size:11px;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
+.rank-badge .rank-value{font-size:22px;font-weight:700;color:var(--navy);margin:4px 0 2px;}
+.rank-badge .rank-value b{font-size:14px;color:var(--grey);font-weight:600;}
+.rank-badge .rank-note{font-size:11px;color:var(--grey);}
+table.miss-table td, table.miss-table th{white-space:nowrap;}
 .kpi-card{background:#fff;border-radius:12px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
 .kpi-card .label{font-size:11px;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
 .kpi-card .value{font-size:26px;font-weight:700;margin:4px 0 2px;}
@@ -79,7 +85,7 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
 
 <header>
   <div class="eyebrow">PT. UNIFAM — Divisi Logistik & Transportasi</div>
-  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v8</span></h1>
+  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v9</span></h1>
   <div class="period-bar">
     <input type="month" id="fromMonth">
     <span style="color:rgba(255,255,255,.6);font-size:12px;">s/d</span>
@@ -134,9 +140,20 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
       <div class="kpi-card"><div class="label">Reliability</div><div class="value" id="kRel">-</div><div class="target" id="tRel">Target 100%</div></div>
     </div>
 
-    <div class="chart-card"><h3>Tren Bulanan — Tiba di FAM</h3><canvas id="chartFam" height="140"></canvas></div>
-    <div class="chart-card"><h3>Tren Bulanan — Tiba di Distributor</h3><canvas id="chartDist" height="140"></canvas></div>
-    <div class="chart-card"><h3>Tren Bulanan — Reliability</h3><canvas id="chartRel" height="140"></canvas></div>
+    <div class="section-title">Peringkat Dibanding Ekspedisi Lain</div>
+    <div class="chart-card" id="rankingCard">
+      <div id="rankingContent" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+    </div>
+
+    <div class="chart-card"><h3>Tren Bulanan — Tiba di FAM</h3><canvas id="chartFam" height="140"></canvas>
+      <div class="data-table-wrap" style="overflow-x:auto;margin-top:10px;"><table class="miss-table" id="tableFam"><thead><tr><th>Bulan</th><th>Hit</th><th>Miss</th><th>Plan</th><th>%</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="chart-card"><h3>Tren Bulanan — Tiba di Distributor</h3><canvas id="chartDist" height="140"></canvas>
+      <div class="data-table-wrap" style="overflow-x:auto;margin-top:10px;"><table class="miss-table" id="tableDist"><thead><tr><th>Bulan</th><th>Hit</th><th>Miss</th><th>Plan</th><th>%</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="chart-card"><h3>Tren Bulanan — Reliability</h3><canvas id="chartRel" height="140"></canvas>
+      <div class="data-table-wrap" style="overflow-x:auto;margin-top:10px;"><table class="miss-table" id="tableRel"><thead><tr><th>Bulan</th><th>Hit</th><th>Miss</th><th>Plan</th><th>%</th></tr></thead><tbody></tbody></table></div>
+    </div>
 
     <div class="section-title">Detail Kejadian Miss</div>
     <div class="chart-card" style="overflow-x:auto;">
