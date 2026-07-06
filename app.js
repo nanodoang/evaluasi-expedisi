@@ -385,7 +385,7 @@ async function generatePptx(d) {
   btn.disabled = true;
 
   try {
-    const pres = new pptxgen();
+    const pres = new PptxGenJS();
     pres.layout = 'LAYOUT_WIDE';
     pres.author = 'PT. UNIFAM';
     pres.title = `Evaluasi Kinerja Ekspedisi - ${d.ekspedisi}`;
