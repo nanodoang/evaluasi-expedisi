@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evaluasi Kinerja Ekspedisi — PT. UNIFAM</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js"></script>
+<style>
+:root{
+  --navy:#21295C; --deep:#065A82; --teal:#1C7293; --mint:#5FC9A8;
+  --green:#1E8F5F; --red:#C0392B; --amber:#B8860B;
+  --light:#F4F8FA; --line:#E2E8F0; --grey:#5B6B79; --ink:#1A2233;
+  --gA:#1E8F5F; --gB:#1C7293; --gC:#B8860B; --gD:#C0392B;
+}
+*{box-sizing:border-box;}
+body{margin:0;font-family:Calibri,Arial,sans-serif;background:var(--light);color:var(--ink);}
+header{background:var(--navy);color:#fff;padding:18px 16px 22px;position:sticky;top:0;z-index:10;}
+header .eyebrow{font-size:11px;letter-spacing:2px;color:var(--mint);font-weight:700;text-transform:uppercase;}
+header h1{margin:4px 0 12px;font-size:22px;font-weight:700;}
+.period-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.period-bar input{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;
+  padding:8px 10px;border-radius:8px;font-size:14px;}
+.period-bar input::-webkit-calendar-picker-indicator{filter:invert(1);}
+.btn{background:var(--mint);color:var(--navy);border:none;padding:9px 16px;border-radius:8px;
+  font-weight:700;font-size:14px;cursor:pointer;}
+.btn.secondary{background:rgba(255,255,255,.15);color:#fff;}
+.btn:active{transform:scale(.97);}
+main{padding:14px 12px 60px;max-width:920px;margin:0 auto;}
+.status{padding:14px;text-align:center;color:var(--grey);font-size:14px;}
+.card{background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);
+  cursor:pointer;display:flex;align-items:center;gap:12px;}
+.card:active{background:#f0f4f6;}
+.grade-badge{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:18px;color:#fff;flex-shrink:0;}
+.card-body{flex:1;min-width:0;}
+.card-title{font-weight:700;font-size:15px;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.card-sub{font-size:12px;color:var(--grey);margin-top:2px;}
+.card-score{font-size:20px;font-weight:700;color:var(--teal);}
+.chip{display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;background:var(--light);
+  color:var(--grey);font-weight:600;margin-top:3px;}
+.section-title{font-size:13px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:1.5px;
+  margin:22px 0 10px 2px;}
+
+/* Detail view */
+#detailView{display:none;}
+.back-btn{background:none;border:none;color:var(--mint);font-size:14px;font-weight:700;cursor:pointer;padding:0 0 8px;}
+.detail-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
+.detail-header h2{margin:2px 0;font-size:24px;color:var(--navy);}
+.detail-grade{width:60px;height:60px;border-radius:50%;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;color:#fff;font-weight:700;flex-shrink:0;}
+.detail-grade span{font-size:24px;line-height:1;}
+.detail-grade small{font-size:9px;letter-spacing:1px;}
+.kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
+.kpi-card{background:#fff;border-radius:12px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.kpi-card .label{font-size:11px;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
+.kpi-card .value{font-size:26px;font-weight:700;margin:4px 0 2px;}
+.kpi-card .target{font-size:11px;color:var(--grey);}
+.chart-card{background:#fff;border-radius:12px;padding:12px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.chart-card h3{margin:0 0 8px;font-size:13px;color:var(--navy);}
+table.miss-table{width:100%;border-collapse:collapse;font-size:12px;}
+table.miss-table th{background:var(--deep);color:#fff;text-align:left;padding:8px 6px;font-size:11px;}
+table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
+.export-bar{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:12px;
+  display:flex;gap:8px;margin:0 -12px -60px;}
+.export-bar .btn{flex:1;background:var(--navy);color:#fff;}
+.export-bar .btn.primary{background:var(--mint);color:var(--navy);}
+.empty{text-align:center;padding:40px 20px;color:var(--grey);}
+.setup-box{background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;font-size:13px;line-height:1.6;color:var(--grey);}
+.setup-box code{background:var(--light);padding:2px 6px;border-radius:4px;font-size:12px;color:var(--navy);}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">PT. UNIFAM — Divisi Logistik & Transportasi</div>
+  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi</h1>
+  <div class="period-bar">
+    <input type="month" id="fromMonth">
+    <span style="color:rgba(255,255,255,.6);font-size:12px;">s/d</span>
+    <input type="month" id="toMonth">
+    <button class="btn" id="loadBtn">Muat Data</button>
+    <button class="btn secondary" id="demoBtn">Data Contoh</button>
+    <button class="btn secondary" id="settingsBtn">⚙︎</button>
+  </div>
+</header>
+
+<main>
+  <div id="settingsPanel" style="display:none;" class="setup-box">
+    <strong style="color:var(--navy);">Pengaturan Koneksi</strong><br>
+    URL Web App (Google Apps Script) — deploy <code>Code.gs</code> lalu tempel URL-nya di sini:
+    <div style="margin:8px 0;">
+      <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/.../exec"
+        style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:12px;">
+    </div>
+    <button class="btn" id="saveApiUrl" style="background:var(--navy);color:#fff;">Simpan</button>
+  </div>
+
+  <div id="listView">
+    <div class="section-title">Perbandingan Semua Ekspedisi</div>
+    <div id="listStatus" class="status">Atur periode lalu tekan "Muat Data".</div>
+    <div id="listContainer"></div>
+  </div>
+
+  <div id="detailView">
+    <button class="back-btn" id="backBtn">‹ Kembali ke daftar</button>
+    <div class="detail-header">
+      <div>
+        <div class="chip" id="detailKategori">-</div>
+        <h2 id="detailNama">-</h2>
+        <div class="card-sub" id="detailPeriode">-</div>
+      </div>
+      <div class="detail-grade" id="detailGradeBadge"><span>-</span><small>GRADE</small></div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="label">Mutu</div><div class="value" id="kMutu">-</div><div class="target" id="tMutu">Target 100%</div></div>
+      <div class="kpi-card"><div class="label">Tiba di FAM</div><div class="value" id="kFam">-</div><div class="target" id="tFam">Target 98%</div></div>
+      <div class="kpi-card"><div class="label">Tiba di Distributor</div><div class="value" id="kDist">-</div><div class="target" id="tDist">Target 98%</div></div>
+      <div class="kpi-card"><div class="label">Reliability</div><div class="value" id="kRel">-</div><div class="target" id="tRel">Target 100%</div></div>
+    </div>
+
+    <div class="chart-card"><h3>Tren Bulanan — Tiba di FAM</h3><canvas id="chartFam" height="140"></canvas></div>
+    <div class="chart-card"><h3>Tren Bulanan — Tiba di Distributor</h3><canvas id="chartDist" height="140"></canvas></div>
+    <div class="chart-card"><h3>Tren Bulanan — Reliability</h3><canvas id="chartRel" height="140"></canvas></div>
+
+    <div class="section-title">Detail Kejadian Miss</div>
+    <div class="chart-card" style="overflow-x:auto;">
+      <table class="miss-table" id="missTable">
+        <thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>ATA/No Pol</th><th>Keterangan</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="missEmpty" class="empty" style="display:none;padding:16px;">Tidak ada kejadian miss pada periode ini.</div>
+    </div>
+
+    <div class="export-bar">
+      <button class="btn secondary" id="printBtn" style="background:var(--light);color:var(--navy);">🖨 Cetak</button>
+      <button class="btn primary" id="pptxBtn">⬇ Download PPTX</button>
+    </div>
+  </div>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
