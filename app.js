@@ -31,8 +31,44 @@ document.getElementById('settingsBtn').onclick = () => {
 document.getElementById('saveApiUrl').onclick = () => {
   apiUrl = document.getElementById('apiUrlInput').value.trim();
   localStorage.setItem('evalEkspedisi_apiUrl', apiUrl);
-  document.getElementById('settingsPanel').style.display = 'none';
   alert('URL tersimpan.');
+};
+
+document.getElementById('testApiBtn').onclick = async () => {
+  const out = document.getElementById('testApiResult');
+  const testUrl = document.getElementById('apiUrlInput').value.trim();
+  out.textContent = 'Menguji koneksi...';
+
+  if (!testUrl) { out.textContent = '⚠ URL kosong.'; return; }
+
+  // 1) Coba fetch() biasa dulu — kalau CORS diblokir, errornya jelas kelihatan
+  try {
+    const res = await fetch(testUrl + (testUrl.includes('?') ? '&' : '?') + 'action=expeditions', { mode: 'cors' });
+    const text = await res.text();
+    out.textContent = '✅ fetch() BERHASIL (status ' + res.status + ')\n' + text.slice(0, 300);
+    return;
+  } catch (fetchErr) {
+    out.textContent = '⚠ fetch() gagal (' + fetchErr.message + ').\nMencoba JSONP...\n';
+  }
+
+  // 2) Fallback: JSONP dengan diagnostik lebih detail
+  try {
+    const cbName = 'jsonp_test_' + Date.now();
+    const result = await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      const sep = testUrl.includes('?') ? '&' : '?';
+      const fullUrl = testUrl + sep + 'action=expeditions&callback=' + cbName;
+      const timeout = setTimeout(() => { cleanup(); reject(new Error('Timeout 15 detik — script tidak pernah selesai load. URL yang dicoba:\n' + fullUrl)); }, 15000);
+      function cleanup() { clearTimeout(timeout); delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); }
+      window[cbName] = (data) => { cleanup(); resolve(data); };
+      script.onerror = (ev) => { cleanup(); reject(new Error('Script gagal dimuat (network-level error). URL:\n' + fullUrl)); };
+      script.src = fullUrl;
+      document.body.appendChild(script);
+    });
+    out.textContent += '✅ JSONP BERHASIL:\n' + JSON.stringify(result).slice(0, 300);
+  } catch (jsonpErr) {
+    out.textContent += '❌ JSONP GAGAL: ' + jsonpErr.message;
+  }
 };
 
 // Default periode: Q berjalan (3 bulan terakhir termasuk bulan ini)
