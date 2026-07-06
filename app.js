@@ -4,21 +4,16 @@ const LOGO_SMALL_B64 = "image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAHACAYAAAD
 
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v9 (2026-07-06) — FITUR BARU (PPTX sementara di-pause, masih
- *          "Repair" walau v8 sudah fix bug Content_Types.xml, perlu digali
- *          lagi lebih dalam):
- *          1. Tabel data mentah (Bulan|Hit|Miss|Plan|%) ditampilkan di bawah
- *             tiap chart tren bulanan (FAM/Distributor/Reliability) — jadi
- *             gak cuma diagram, angka aslinya juga kelihatan.
- *          2. Ranking: di halaman detail sekarang ada kartu "Peringkat
- *             Dibanding Ekspedisi Lain" yang nunjukkin urutan ke berapa dari
- *             berapa ekspedisi untuk komponen Tiba di Distributor (DOT) dan
- *             Reliability (Pemenuhan Armada) — dihitung dari daftar lengkap
- *             yang sudah di-load sebelumnya.
+ * VERSION: v11 (2026-07-06) — Kartu ranking kedua sekarang pakai data
+ *          "Tiba di FAM" (bukan Reliability lagi), sesuai permintaan Nano.
+ *          Perlu Code.gs v6 (backend sekarang hitung FAM asli per ekspedisi
+ *          di daftar, bukan proxy dari Distributor lagi).
  * VERSION HISTORY:
- *   v8 — fix Content_Types.xml phantom slideMaster refs (bug bawaan
- *        pptxgenjs) — TERNYATA MASIH REPAIR di real-world test, root cause
- *        blm ketemu 100%, di-pause dulu
+ *   v10 — ranking dipisah per kategori (Truck/Darat vs Kontener/Laut)
+ *   v9 — tambah tabel data mentah (Bulan|Hit|Miss|Plan|%) di bawah tiap
+ *        chart + kartu ranking
+ *   v8 — fix Content_Types.xml phantom slideMaster refs — masih Repair di
+ *        real-world test, PPTX di-pause sementara
  *   v7 — rewrite writeFile jadi re-zip manual (fix folder kosong & kompresi)
  *   v6 — fix null values in chart + dynamic axis scale + long name overlap
  *   v5 — fix timezone bug fmtDate() + cache-busting fetch()
@@ -297,7 +292,7 @@ function renderDetail(d) {
   fillDataTable('tableDist', d.bulanan.distributor);
   fillDataTable('tableRel', d.bulanan.reliability);
 
-  renderRanking(d.ekspedisi);
+  renderRanking(d.ekspedisi, d.kategori || findKategoriInList(d.ekspedisi));
 
   const tbody = document.querySelector('#missTable tbody');
   const missEmpty = document.getElementById('missEmpty');
@@ -316,6 +311,11 @@ function renderDetail(d) {
     document.getElementById('missTable').style.display = 'none';
     missEmpty.style.display = 'block';
   }
+}
+
+function findKategoriInList(ekspedisiName) {
+  const found = (currentList || []).find(item => item.ekspedisi === ekspedisiName);
+  return found ? found.kategori : null;
 }
 
 function fillDataTable(tableId, monthly) {
@@ -341,10 +341,14 @@ function fillDataTable(tableId, monthly) {
   </tr>`;
 }
 
-// Hitung ranking 1 ekspedisi dibanding semua ekspedisi lain di currentList,
-// berdasarkan field tertentu (distributor / reliability), diurutkan tertinggi dulu.
-function computeRank(list, ekspedisiName, field) {
-  const valid = list.filter(item => item[field] != null);
+// Hitung ranking 1 ekspedisi HANYA dibanding ekspedisi lain dalam kategori
+// yang sama (Truck/Darat vs Kontener/Laut) — biar adil, karena skor kedua
+// kategori ini biasanya beda karakteristik.
+function computeRank(list, ekspedisiName, field, kategori) {
+  const sameCategory = kategori
+    ? list.filter(item => normalizeKategori(item.kategori) === normalizeKategori(kategori))
+    : list;
+  const valid = sameCategory.filter(item => item[field] != null);
   if (!valid.length) return null;
   const sorted = [...valid].sort((a, b) => b[field] - a[field]);
   const idx = sorted.findIndex(item => item.ekspedisi === ekspedisiName);
@@ -352,14 +356,31 @@ function computeRank(list, ekspedisiName, field) {
   return { rank: idx + 1, total: sorted.length, value: sorted[idx][field] };
 }
 
-function renderRanking(ekspedisiName) {
+// Samakan variasi penulisan kategori (Truck/Darat, Kontener/Laut, dll) jadi
+// satu bentuk baku, supaya "Truck" dan "Darat" dianggap kategori yang sama.
+function normalizeKategori(kategori) {
+  const k = String(kategori || '').trim().toLowerCase();
+  if (k.includes('truck') || k.includes('darat')) return 'darat';
+  if (k.includes('kontener') || k.includes('container') || k.includes('laut')) return 'laut';
+  return k;
+}
+
+function kategoriLabel(kategori) {
+  const norm = normalizeKategori(kategori);
+  if (norm === 'darat') return 'Truck/Darat';
+  if (norm === 'laut') return 'Kontener/Laut';
+  return kategori || '-';
+}
+
+function renderRanking(ekspedisiName, kategori) {
   const container = document.getElementById('rankingContent');
   if (!currentList || !currentList.length) {
     container.innerHTML = '<div style="color:var(--grey);font-size:13px;">Muat daftar semua ekspedisi dulu (lewat halaman utama) supaya ranking bisa dihitung.</div>';
     return;
   }
-  const rankDist = computeRank(currentList, ekspedisiName, 'distributor');
-  const rankRel = computeRank(currentList, ekspedisiName, 'reliability');
+  const rankDist = computeRank(currentList, ekspedisiName, 'distributor', kategori);
+  const rankFam = computeRank(currentList, ekspedisiName, 'fam', kategori);
+  const catLabel = kategoriLabel(kategori);
 
   function badge(label, rankInfo) {
     if (!rankInfo) return `<div class="rank-badge"><div class="rank-label">${label}</div><div class="rank-note">Data tidak tersedia</div></div>`;
@@ -368,13 +389,13 @@ function renderRanking(ekspedisiName) {
     return `<div class="rank-badge">
       <div class="rank-label">${label}</div>
       <div class="rank-value" style="color:#${color};">#${rankInfo.rank} <b>dari ${rankInfo.total} ekspedisi</b></div>
-      <div class="rank-note">Skor: ${rankInfo.value.toFixed(2)}%</div>
+      <div class="rank-note">Skor: ${rankInfo.value.toFixed(2)}% · Kategori: ${escapeHtml(catLabel)}</div>
     </div>`;
   }
 
   container.innerHTML =
     badge('Tiba di Distributor (DOT)', rankDist) +
-    badge('Reliability (Pemenuhan Armada)', rankRel);
+    badge('Pemenuhan Armada (Tiba di FAM)', rankFam);
 }
 
 function periodeLabel(p) {
@@ -503,6 +524,7 @@ function loadDemo() {
     ekspedisi: d.ekspedisi,
     kategori: d.kategori,
     mutu: d.ringkasan.mutu.pct,
+    fam: d.ringkasan.fam.pct,
     distributor: d.ringkasan.distributor.pct,
     reliability: d.ringkasan.reliability.pct,
     totalSementara: d.ringkasan.totalSkor,
