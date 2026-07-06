@@ -4,21 +4,23 @@ const LOGO_SMALL_B64 = "image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAHACAYAAAD
 
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v7 (2026-07-06) — FIX KRITIS: file PPTX ke-generate KORUP
- *          ("PowerPoint found a problem, click Repair"). Akar masalah:
- *          pres.writeFile() bawaan pptxgenjs bikin ZIP dgn 19 entry folder
- *          kosong + tanpa kompresi — LibreOffice/python-pptx toleran, tapi
- *          PowerPoint asli menolak. Sekarang generate ke arraybuffer lalu
- *          RE-ZIP manual pakai JSZip (proper DEFLATE, tanpa folder entry)
- *          sebelum didownload. Sudah diverifikasi ulang pakai pptxgenjs+
- *          JSZip asli (bukan stub) — 0 folder kosong, semua DEFLATE, valid
- *          dibuka python-pptx & LibreOffice.
- *          Juga fix: nilai null (FAM kosong) di-sanitasi ke 0 sebelum masuk
- *          chart, skala sumbu chart dinamis, font nama ekspedisi panjang
- *          auto-mengecil di cover slide.
+ * VERSION: v8 (2026-07-06) — FIX AKAR MASALAH SEBENARNYA dari "PowerPoint
+ *          found a problem" (v7 BELUM benar-benar fix, cuma memperbaiki
+ *          gejala ZIP-nya, bukan sumbernya). Ternyata ini BUG BAWAAN
+ *          pptxgenjs v3.12.0: [Content_Types].xml men-declare 1 Override
+ *          slideMaster PER SLIDE (mis. slideMaster1.xml..slideMaster8.xml
+ *          utk 8 slide), tapi pptxgenjs cuma benar-benar MENULIS 1 file
+ *          (slideMaster1.xml) ke ZIP — 7 referensi sisanya "hantu" (nunjuk
+ *          ke file yang gak ada). LibreOffice & python-pptx cuek soal ini,
+ *          tapi PowerPoint asli strict ikut spek OPC dan langsung nolak.
+ *          Sekarang saat re-zip, [Content_Types].xml dibersihkan dari semua
+ *          <Override> yang PartName-nya tidak match file yang benar-benar
+ *          ada di ZIP. Sudah diverifikasi: 0 referensi hantu, valid dibuka
+ *          python-pptx & LibreOffice.
  * VERSION HISTORY:
+ *   v7 — rewrite writeFile jadi re-zip manual (fix folder kosong & kompresi,
+ *        tapi ternyata belum menyentuh akar masalah sebenarnya di atas)
  *   v6 — fix null values in chart + dynamic axis scale + long name overlap
- *        (masih pakai writeFile lama, korup bug BELUM ketemu akar masalahnya)
  *   v5 — fix timezone bug fmtDate() + cache-busting fetch()
  *   v4 — ganti jalur utama fetch data dari JSONP ke fetch() langsung
  *   v3 — tambah tombol "Tes Koneksi" (fetch + JSONP diagnostik)
@@ -652,8 +654,24 @@ async function generatePptx(d) {
     const sourceZip = await JSZip.loadAsync(rawBuffer);
     const cleanZip = new JSZip();
     const fileEntries = Object.keys(sourceZip.files).filter(name => !sourceZip.files[name].dir);
+    const fileEntrySet = new Set(fileEntries.map(n => '/' + n));
+
     await Promise.all(fileEntries.map(async (name) => {
-      const content = await sourceZip.files[name].async('uint8array');
+      let content = await sourceZip.files[name].async('uint8array');
+
+      // FIX BUG BAWAAN pptxgenjs: [Content_Types].xml men-declare Override utk
+      // slideMaster2.xml..slideMasterN.xml (satu per slide) tapi cuma
+      // slideMaster1.xml yang benar-benar ditulis ke ZIP. PowerPoint asli
+      // strict soal ini dan menolak file (LibreOffice/python-pptx cuek).
+      // Solusi: hapus <Override> yang PartName-nya tidak match file asli.
+      if (name === '[Content_Types].xml') {
+        let xmlText = new TextDecoder('utf-8').decode(content);
+        xmlText = xmlText.replace(/<Override[^>]*PartName="([^"]+)"[^>]*\/>/g, (match, partName) => {
+          return fileEntrySet.has(partName) ? match : '';
+        });
+        content = new TextEncoder().encode(xmlText);
+      }
+
       cleanZip.file(name, content, { compression: 'DEFLATE', createFolders: false, dir: false });
     }));
     const cleanBlob = await cleanZip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
