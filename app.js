@@ -4,12 +4,14 @@ const LOGO_SMALL_B64 = "image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAHACAYAAAD
 
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v16 (2026-07-06) — Mutu sekarang punya array data bulanan sendiri
- *          (copy independen), bukan literally reference yang sama dgn FAM
- *          lagi — sesuai permintaan Nano ("jangan disamakan datanya").
- *          Nilai Mutu tetap = persentase Hit Tiba di FAM (sesuai formula),
- *          tapi objek/array datanya kini terpisah.
+ * VERSION: v17 (2026-07-06) — Slide PPTX "Mutu" sekarang TIDAK tampilkan
+ *          kolom "Miss" (cuma Bulan|Hit|Plan|%) — dikonfirmasi Nano: Mutu
+ *          angkanya memang sama persis dgn Tiba di FAM (itu benar, sesuai
+ *          formula), tapi Mutu tidak punya konsep "Miss" sendiri jadi tidak
+ *          perlu ditampilkan kolomnya (biar tidak terkesan data "menyatu"
+ *          dgn FAM). Hit/Plan/% tetap sama nilainya dgn FAM.
  * VERSION HISTORY:
+ *   v16 — Mutu punya array bulanan sendiri (copy independen dari FAM)
  *   v15 — tabel miss tampilkan kolom Komponen + data komplain Reliability
  *   v14 — fix 2 bug PPTX: Content_Types.xml phantom refs + chart
  *        relationship path absolut (keduanya bikin "Repair" di PowerPoint)
@@ -729,13 +731,16 @@ async function generatePptx(d) {
     footer(s2, 2);
 
     // SLIDES 3-6: DETAIL PER KOMPONEN
-    function detailSlide(pageNum, kicker, title, note, monthly, target) {
+    function detailSlide(pageNum, kicker, title, note, monthly, target, showMiss) {
+      if (showMiss === undefined) showMiss = true;
       let s = pres.addSlide();
       s.background = { color: WHITE };
       sectionHeader(s, kicker, title);
       s.addText(`${note}  (Target: ${target}%)`, { x: 0.6, y: 1.28, w: 11.5, h: 0.3, fontSize: 12, color: GREY, fontFace: 'Calibri', margin: 0 });
 
-      const header = ['Bulan', 'Hit', 'Miss', 'Plan', '%'].map(t => ({ text: t, options: { bold: true, color: WHITE, fill: { color: DEEP }, align: t === 'Bulan' ? 'left' : 'center' } }));
+      const cols = showMiss ? ['Bulan', 'Hit', 'Miss', 'Plan', '%'] : ['Bulan', 'Hit', 'Plan', '%'];
+      const colW = showMiss ? [1.7, 1.0, 1.0, 1.0, 1.0] : [2.2, 1.15, 1.15, 1.2];
+      const header = cols.map(t => ({ text: t, options: { bold: true, color: WHITE, fill: { color: DEEP }, align: t === 'Bulan' ? 'left' : 'center' } }));
       const tableData = [header];
       let sumHit = 0, sumMiss = 0, sumPlan = 0;
       monthly.forEach(m => { sumHit += m.hit; sumMiss += m.miss; sumPlan += m.plan; });
@@ -744,15 +749,18 @@ async function generatePptx(d) {
         const isTotal = row.bulan === 'Jumlah';
         const fill = isTotal ? LIGHT : WHITE;
         const pctColor = scoreColor(row.pct, target);
-        tableData.push([
+        const cells = [
           { text: row.bulan, options: { bold: isTotal, fill: { color: fill } } },
-          { text: String(row.hit), options: { align: 'center', fill: { color: fill } } },
-          { text: String(row.miss), options: { align: 'center', fill: { color: fill }, color: row.miss > 0 ? RED : NAVY, bold: row.miss > 0 } },
-          { text: String(row.plan), options: { align: 'center', fill: { color: fill } } },
-          { text: (row.pct != null ? row.pct.toFixed(2) : '-') + '%', options: { align: 'center', fill: { color: fill }, bold: true, color: pctColor } }
-        ]);
+          { text: String(row.hit), options: { align: 'center', fill: { color: fill } } }
+        ];
+        if (showMiss) {
+          cells.push({ text: String(row.miss), options: { align: 'center', fill: { color: fill }, color: row.miss > 0 ? RED : NAVY, bold: row.miss > 0 } });
+        }
+        cells.push({ text: String(row.plan), options: { align: 'center', fill: { color: fill } } });
+        cells.push({ text: (row.pct != null ? row.pct.toFixed(2) : '-') + '%', options: { align: 'center', fill: { color: fill }, bold: true, color: pctColor } });
+        tableData.push(cells);
       });
-      s.addTable(tableData, { x: 0.6, y: 1.75, w: 5.7, colW: [1.7, 1.0, 1.0, 1.0, 1.0], fontSize: 13, fontFace: 'Calibri', color: NAVY,
+      s.addTable(tableData, { x: 0.6, y: 1.75, w: 5.7, colW: colW, fontSize: 13, fontFace: 'Calibri', color: NAVY,
         border: { pt: 0.75, color: 'E2E8F0' }, autoPage: false, rowH: 0.55, valign: 'middle' });
 
       const chartLabels = rows.map(x => x.bulan);
@@ -774,7 +782,7 @@ async function generatePptx(d) {
       footer(s, pageNum);
     }
 
-    detailSlide(3, 'Komponen 1 — Bobot 10%', 'Mutu', 'Kesesuaian kondisi barang & dokumen pengiriman terhadap standar.', d.bulanan.mutu, r.mutu.target);
+    detailSlide(3, 'Komponen 1 — Bobot 10%', 'Mutu', 'Kesesuaian kondisi barang & dokumen pengiriman terhadap standar (= persentase Hit Tiba di FAM).', d.bulanan.mutu, r.mutu.target, false);
     detailSlide(4, 'Komponen 2a — Bobot 20% (DOT)', 'Delivery Time: Tiba di FAM', 'Ketepatan waktu kedatangan armada di gudang FAM sesuai jadwal.', d.bulanan.fam, r.fam.target);
     detailSlide(5, 'Komponen 2b — Bobot 50% (DOT)', 'Delivery Time: Tiba di Distributor', 'Ketepatan waktu kedatangan barang di lokasi distributor tujuan akhir.', d.bulanan.distributor, r.distributor.target);
     detailSlide(6, 'Komponen 3 — Bobot 20%', 'Reliability', 'Konsistensi pemenuhan armada terhadap rencana pengiriman (plan).', d.bulanan.reliability, r.reliability.target);
