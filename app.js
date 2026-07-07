@@ -1,12 +1,14 @@
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v23 (2026-07-06) — 2 update: (1) Formula Reliability diperbaiki
- *          balik ke Total DOT (Hit+Miss digabung) sbg basis, dikurangi
- *          complain — bukan Hit DOT saja seperti sebelumnya. (2) Tambah
- *          "Ringkasan Penyebab Miss — Tiba di Distributor": chip berwarna
- *          menunjukkan tally per kategori (Mobil Trouble: 5, Sopir Sakit:
- *          2, dst), diurutkan dari paling sering. Perlu Code.gs v21+.
+ * VERSION: v24 (2026-07-06) — FIX PERFORMA: panel "Data Mentah" dulu
+ *          otomatis dimuat tiap buka detail ekspedisi — ini bikin lemot
+ *          krn setiap buka detail jadi 2x kerja di backend (baca ulang
+ *          semua tab dua kali: sekali utk data asli, sekali lagi utk panel
+ *          debug). Sekarang jadi tombol manual ("🔍 Tampilkan Data
+ *          Mentah") — cuma dimuat kalau memang mau dicek.
  * VERSION HISTORY:
+ *   v23 — 2 update: formula Reliability balik ke Total DOT sbg basis,
+ *        tambah ringkasan penyebab miss Distributor (chip berwarna)
  *   v22 — panel "Data Mentah" otomatis di halaman detail
  *   v21 — PPTX dipindah total ke server (Google Slides API)
  *   v20 — fix bug ke-4 pptxgenjs: ID shape bentrok
@@ -304,7 +306,14 @@ function renderDetail(d) {
 
   renderRanking(d.ekspedisi, d.kategori || findKategoriInList(d.ekspedisi));
   renderAnalysis(d, r);
-  loadRawDebugData(d);
+  // CATATAN: dulu panel "Data Mentah" dimuat OTOMATIS tiap buka detail —
+  // ternyata ini bikin lemot krn tiap buka detail jadi 2x kerja di backend
+  // (baca ulang semua tab). Sekarang jadi tombol manual, lihat setupRawDebugButton().
+  const rawBtn = document.getElementById('loadRawDebugBtn');
+  rawBtn.style.display = 'inline-block';
+  rawBtn.textContent = '🔍 Tampilkan Data Mentah';
+  rawBtn.disabled = false;
+  document.getElementById('rawDebugContent').innerHTML = '';
 
   fillMissTable('missTableFam', 'missEmptyFam', d.missDetail && d.missDetail.fam);
   fillMissTable('missTableDist', 'missEmptyDist', d.missDetail && d.missDetail.distributor);
@@ -757,6 +766,14 @@ document.getElementById('printBtn').onclick = () => window.print();
 // base64-nya lalu memicu download.
 // ---------------------------------------------------------------------------
 document.getElementById('pptxBtn').onclick = () => generatePptx(currentDetail);
+
+document.getElementById('loadRawDebugBtn').onclick = async () => {
+  const btn = document.getElementById('loadRawDebugBtn');
+  btn.textContent = 'Memuat...';
+  btn.disabled = true;
+  await loadRawDebugData(currentDetail);
+  btn.style.display = 'none'; // sembunyikan tombol setelah data tampil, klik lagi (buka ekspedisi baru) akan reset
+};
 
 async function generatePptx(d) {
   if (!d) return;
