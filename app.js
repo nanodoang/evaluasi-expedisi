@@ -1,14 +1,14 @@
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v22 (2026-07-06) — Tambah panel "Data Mentah (Cek Sumber Angka)"
- *          otomatis di halaman detail — begitu buka ekspedisi, langsung
- *          kelihatan baris mentah dari rtc/data miss pa/Dot/complain utk
- *          ekspedisi itu. TIDAK PERLU lagi jalankan debugRtc/debugDot dkk
- *          manual dari Apps Script editor. Perlu Code.gs v17 (action baru
- *          "debugRaw").
+ * VERSION: v23 (2026-07-06) — 2 update: (1) Formula Reliability diperbaiki
+ *          balik ke Total DOT (Hit+Miss digabung) sbg basis, dikurangi
+ *          complain — bukan Hit DOT saja seperti sebelumnya. (2) Tambah
+ *          "Ringkasan Penyebab Miss — Tiba di Distributor": chip berwarna
+ *          menunjukkan tally per kategori (Mobil Trouble: 5, Sopir Sakit:
+ *          2, dst), diurutkan dari paling sering. Perlu Code.gs v21+.
  * VERSION HISTORY:
- *   v21 — PPTX dipindah total ke server (Google Slides API), app.js jauh
- *        lebih kecil (~35KB, dulu ~585KB)
+ *   v22 — panel "Data Mentah" otomatis di halaman detail
+ *   v21 — PPTX dipindah total ke server (Google Slides API)
  *   v20 — fix bug ke-4 pptxgenjs: ID shape bentrok
  *   v19 — fix bug ke-3: axId hantu di chart kombo + target FAM jadi 100%
  *   v18 — formula Mutu dipastikan, missDetail dipisah jadi 3 objek independen
@@ -308,10 +308,30 @@ function renderDetail(d) {
 
   fillMissTable('missTableFam', 'missEmptyFam', d.missDetail && d.missDetail.fam);
   fillMissTable('missTableDist', 'missEmptyDist', d.missDetail && d.missDetail.distributor);
+  renderMissBreakdown(d.distributorMissBreakdown);
   fillMissTable('missTableRel', 'missEmptyRel', d.missDetail && d.missDetail.reliability);
 }
 
 // Render 1 tabel detail-miss utk 1 komponen SAJA (tidak digabung dgn komponen lain)
+// Tampilkan ringkasan penyebab miss Distributor (mis. "Mobil Trouble: 5",
+// "Sopir Sakit: 2") sbg chip berwarna, diurutkan dari yang paling sering.
+function renderMissBreakdown(breakdown) {
+  const container = document.getElementById('missBreakdownContent');
+  if (!breakdown || Object.keys(breakdown).length === 0) {
+    container.innerHTML = '<div style="color:var(--grey);font-size:13px;">Tidak ada kejadian miss pada periode ini.</div>';
+    return;
+  }
+  const entries = Object.entries(breakdown).sort((a, b) => b[1] - a[1]);
+  const maxCount = entries[0][1];
+  container.innerHTML = entries.map(([label, count]) => {
+    const isTop = count === maxCount;
+    const color = isTop ? COLORS.red : COLORS.grey;
+    return `<div class="chip" style="background:#${color}18;color:#${color};font-size:12px;padding:6px 12px;font-weight:${isTop ? '700' : '500'};">
+      ${escapeHtml(label)}: <b>${count}</b>
+    </div>`;
+  }).join('');
+}
+
 function fillMissTable(tableId, emptyId, rows) {
   const tbody = document.querySelector(`#${tableId} tbody`);
   const emptyEl = document.getElementById(emptyId);
@@ -671,6 +691,11 @@ function buildMockDetail(nama, kategori, famMiss, distMiss) {
     },
     bulanan: { mutu: mutuMonthly, fam: famMonthly, distributor: distMonthly, reliability: paMonthly },
     missDetail: { fam: missDetailFam, distributor: missDetailDist, reliability: missDetailRel },
+    distributorMissBreakdown: missDetailDist.reduce((acc, m) => {
+      const key = m.keterangan || 'Tidak ada keterangan';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {}),
     kategori
   };
 }

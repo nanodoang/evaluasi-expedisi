@@ -84,7 +84,7 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
 
 <header>
   <div class="eyebrow">PT. UNIFAM — Divisi Logistik & Transportasi</div>
-  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v22</span></h1>
+  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v23</span></h1>
   <div class="period-bar">
     <input type="month" id="fromMonth">
     <span style="color:rgba(255,255,255,.6);font-size:12px;">s/d</span>
@@ -158,6 +158,10 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
 
     <div class="chart-card"><h3>Tren Bulanan — Tiba di Distributor</h3><canvas id="chartDist" height="140"></canvas>
       <div class="data-table-wrap" style="overflow-x:auto;margin-top:10px;"><table class="miss-table" id="tableDist"><thead><tr><th>Bulan</th><th>Hit</th><th>Miss</th><th>Plan</th><th>%</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="chart-card" id="missBreakdownCard">
+      <h3>Ringkasan Penyebab Miss — Tiba di Distributor</h3>
+      <div id="missBreakdownContent" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div>
     </div>
     <div class="chart-card" style="overflow-x:auto;">
       <h3>Detail Kejadian Miss — Tiba di Distributor</h3>
