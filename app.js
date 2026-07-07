@@ -4,13 +4,13 @@ const LOGO_SMALL_B64 = "image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAHACAYAAAD
 
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v15 (2026-07-06) — Tabel "Detail Kejadian Miss" (di dashboard
- *          maupun PPTX) sekarang tampilkan kolom "Komponen" — nunjukkin
- *          apakah kejadian itu terkait Tiba di FAM, Tiba di Distributor,
- *          atau Reliability (komplain barang kurang/rusak). Data komplain
- *          dari tab "complain brg kurang" sekarang juga muncul di tabel ini
- *          (perlu Code.gs terbaru).
+ * VERSION: v16 (2026-07-06) — Mutu sekarang punya array data bulanan sendiri
+ *          (copy independen), bukan literally reference yang sama dgn FAM
+ *          lagi — sesuai permintaan Nano ("jangan disamakan datanya").
+ *          Nilai Mutu tetap = persentase Hit Tiba di FAM (sesuai formula),
+ *          tapi objek/array datanya kini terpisah.
  * VERSION HISTORY:
+ *   v15 — tabel miss tampilkan kolom Komponen + data komplain Reliability
  *   v14 — fix 2 bug PPTX: Content_Types.xml phantom refs + chart
  *        relationship path absolut (keduanya bikin "Repair" di PowerPoint)
  *   v13 — tambah "Analisa Pencapaian" (ringkasan naratif otomatis)
@@ -573,7 +573,7 @@ function buildMockDetail(nama, kategori, famMiss, distMiss) {
       totalSkor: total,
       grade: total >= 97 ? 'A' : total >= 94 ? 'B' : total >= 91 ? 'C' : 'D'
     },
-    bulanan: { mutu: famMonthly, fam: famMonthly, distributor: distMonthly, reliability: paMonthly },
+    bulanan: { mutu: famMonthly.map(m => ({ ...m })), fam: famMonthly, distributor: distMonthly, reliability: paMonthly },
     missDetail,
     kategori
   };
