@@ -4,19 +4,22 @@ const LOGO_SMALL_B64 = "image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAHACAYAAAD
 
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v18 (2026-07-06) — 2 PERBAIKAN BESAR sesuai konfirmasi Nano:
- *          1. Formula Mutu DIPASTIKAN: Hit = Hit Tiba di FAM apa adanya,
- *             Miss SELALU 0 (terpisah total dari data Miss FAM), Plan = Hit
- *             itu sendiri — jadi Mutu = 100% selama ada data Hit sama sekali.
- *             (dikonfirmasi via contoh: FAM Hit=90,Miss=10,Plan=100(90%) ->
- *             Mutu: Hit=90,Miss=0,Plan=90,jadi 100%)
- *          2. missDetail TIDAK LAGI 1 array gabungan dgn kolom "Komponen" —
- *             sekarang objek terpisah { fam, distributor, reliability },
- *             masing-masing tabelnya sendiri baik di dashboard (3 tabel
- *             terpisah persis di bawah tren masing-masing komponen) maupun
- *             di PPTX (3 slide terpisah, bukan 1 slide gabungan lagi — PPTX
- *             sekarang 10 slide, bukan 8).
+ * VERSION: v19 (2026-07-06) — FIX BUG KETIGA PPTX (akhirnya!) + ubah target
+ *          FAM jadi 100%.
+ *          Bug ketiga ditemukan dari bongkar file PPTX asli (SPA) yang
+ *          dikirim Nano: chart KOMBO (bar+garis target, dipakai di semua
+ *          slide detail komponen) mereferensikan 3 axId per plot
+ *          (barChart & lineChart), tapi cuma 2 axis yang benar2 didefinisikan
+ *          (catAx + valAx) — axId ke-3 "hantu" tanpa definisi axis sama
+ *          sekali. PowerPoint strict & menolak ini. Sekarang axId yang tidak
+ *          punya definisi otomatis dibuang saat proses re-zip.
+ *          Sudah diverifikasi: 0 axId hantu, semua axis match definisinya,
+ *          valid dibuka python-pptx & LibreOffice.
+ *          Juga: target Tiba di FAM diubah dari 98% jadi 100%.
  * VERSION HISTORY:
+ *   v18 — 2 perbaikan besar: formula Mutu dipastikan (Hit FAM, Miss selalu
+ *        0), missDetail dipisah jadi 3 objek independen (fam/distributor/
+ *        reliability), bukan 1 array gabungan lagi
  *   v17 — slide PPTX Mutu tidak tampilkan kolom Miss
  *   v16 — Mutu punya array bulanan sendiri (copy independen dari FAM)
  *   v15 — tabel miss tampilkan kolom Komponen + data komplain Reliability
@@ -50,7 +53,7 @@ const COLORS = {
   navy: '21295C', deep: '065A82', teal: '1C7293', mint: '5FC9A8',
   green: '1E8F5F', red: 'C0392B', grey: '5B6B79', light: 'F4F8FA', white: 'FFFFFF'
 };
-const TARGETS = { mutu: 100, fam: 98, distributor: 98, reliability: 100 };
+const TARGETS = { mutu: 100, fam: 100, distributor: 98, reliability: 100 };
 const WEIGHTS = { mutu: 0.10, fam: 0.20, distributor: 0.50, reliability: 0.20 };
 
 let apiUrl = localStorage.getItem('evalEkspedisi_apiUrl') || '';
@@ -913,6 +916,28 @@ async function generatePptx(d) {
         xmlText = xmlText.replace(/Target="(\/[^"]+)"/g, (match, target) => {
           const rel = relativePath(relsDir, target);
           return 'Target="' + rel + '"';
+        });
+        content = new TextEncoder().encode(xmlText);
+      }
+
+      // FIX BUG BAWAAN pptxgenjs #3: chart KOMBO (bar+line, dipakai utk garis
+      // target di slide detail) mereferensikan 3 axId di setiap plot
+      // (barChart & lineChart), padahal cuma 2 axis yang benar2 didefinisikan
+      // (catAx + valAx) — axId ke-3 "hantu", tidak punya definisi axis sama
+      // sekali. PowerPoint strict & menolak chart dgn axId yang tidak match
+      // definisi axis manapun. Solusi: buang axId yang tidak match dari tiap
+      // blok plot (barChart/lineChart/dll).
+      if (/^ppt\/charts\/chart\d+\.xml$/.test(name)) {
+        let xmlText = new TextDecoder('utf-8').decode(content);
+        const definedIds = new Set();
+        const axisBlockRe = /<c:(catAx|valAx|dateAx|serAx)>[\s\S]*?<\/c:\1>/g;
+        let am;
+        while ((am = axisBlockRe.exec(xmlText))) {
+          const idMatch = /<c:axId val="(\d+)"\/>/.exec(am[0]);
+          if (idMatch) definedIds.add(idMatch[1]);
+        }
+        xmlText = xmlText.replace(/<c:(barChart|lineChart|pieChart|areaChart|scatterChart|bar3DChart|line3DChart|doughnutChart|radarChart)>[\s\S]*?<\/c:\1>/g, (plotMatch) => {
+          return plotMatch.replace(/<c:axId val="(\d+)"\/>/g, (full, id) => definedIds.has(id) ? full : '');
         });
         content = new TextEncoder().encode(xmlText);
       }
