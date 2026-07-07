@@ -4,11 +4,12 @@ const LOGO_SMALL_B64 = "image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAHACAYAAAD
 
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v11 (2026-07-06) — Kartu ranking kedua sekarang pakai data
- *          "Tiba di FAM" (bukan Reliability lagi), sesuai permintaan Nano.
- *          Perlu Code.gs v6 (backend sekarang hitung FAM asli per ekspedisi
- *          di daftar, bukan proxy dari Distributor lagi).
+ * VERSION: v12 (2026-07-06) — FIX FORMULA (ikut Code.gs v8): Mutu sekarang
+ *          = persentase Hit Tiba di FAM (dulu keliru pakai angka Reliability).
+ *          Reliability tetap = Distributor/DOT dikurangi complain (sudah
+ *          benar dari awal). Mock data "Data Contoh" juga disesuaikan.
  * VERSION HISTORY:
+ *   v11 — kartu ranking kedua pakai data Tiba di FAM (bukan Reliability)
  *   v10 — ranking dipisah per kategori (Truck/Darat vs Kontener/Laut)
  *   v9 — tambah tabel data mentah (Bulan|Hit|Miss|Plan|%) di bawah tiap
  *        chart + kartu ranking
@@ -476,7 +477,7 @@ function buildMockDetail(nama, kategori, famMiss, distMiss) {
   const distMonthly = mockMonthly(hitDist, missDist, bulan);
   const paMonthly = mockMonthly(hitPa, missPa, bulan);
   const famPct = avgPct(famMonthly), distPct = avgPct(distMonthly), paPct = avgPct(paMonthly);
-  const total = Math.round((WEIGHTS.mutu * paPct + WEIGHTS.fam * famPct + WEIGHTS.distributor * distPct + WEIGHTS.reliability * paPct) * 100) / 100;
+  const total = Math.round((WEIGHTS.mutu * famPct + WEIGHTS.fam * famPct + WEIGHTS.distributor * distPct + WEIGHTS.reliability * paPct) * 100) / 100;
   const totalMissCount = sumArr(famMiss) + sumArr(distMiss);
   const missDetail = [];
   let seed = 0;
@@ -490,14 +491,14 @@ function buildMockDetail(nama, kategori, famMiss, distMiss) {
     ekspedisi: nama,
     periode: { from: '2026-04-01', to: '2026-06-30' },
     ringkasan: {
-      mutu: { pct: paPct, target: TARGETS.mutu },
+      mutu: { pct: famPct, target: TARGETS.mutu }, // Mutu = persentase Hit Tiba di FAM
       fam: { hit: sumArr(hitFam), miss: sumArr(missFam), plan: sumArr(hitFam) + sumArr(missFam), pct: famPct, target: TARGETS.fam },
       distributor: { hit: sumArr(hitDist), miss: sumArr(missDist), plan: sumArr(hitDist) + sumArr(missDist), pct: distPct, target: TARGETS.distributor },
       reliability: { hit: sumArr(hitPa), miss: sumArr(missPa), plan: sumArr(hitPa) + sumArr(missPa), pct: paPct, target: TARGETS.reliability },
       totalSkor: total,
       grade: total >= 97 ? 'A' : total >= 94 ? 'B' : total >= 91 ? 'C' : 'D'
     },
-    bulanan: { mutu: paMonthly, fam: famMonthly, distributor: distMonthly, reliability: paMonthly },
+    bulanan: { mutu: famMonthly, fam: famMonthly, distributor: distMonthly, reliability: paMonthly },
     missDetail,
     kategori
   };
