@@ -4,20 +4,22 @@ const LOGO_SMALL_B64 = "image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAHACAYAAAD
 
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v13 (2026-07-06) — Tambah "Analisa Pencapaian" di halaman detail:
- *          ringkasan naratif otomatis (verdict keseluruhan, komponen yang
- *          capai/belum capai target, tren naik/turun FAM & Distributor,
- *          penyebab miss paling sering). Ranking sudah otomatis exclude
- *          ekspedisi tanpa data (item[field] != null) sejak awal — dicek
- *          ulang, sudah benar, tidak perlu diubah.
+ * VERSION: v15 (2026-07-06) — Tabel "Detail Kejadian Miss" (di dashboard
+ *          maupun PPTX) sekarang tampilkan kolom "Komponen" — nunjukkin
+ *          apakah kejadian itu terkait Tiba di FAM, Tiba di Distributor,
+ *          atau Reliability (komplain barang kurang/rusak). Data komplain
+ *          dari tab "complain brg kurang" sekarang juga muncul di tabel ini
+ *          (perlu Code.gs terbaru).
  * VERSION HISTORY:
+ *   v14 — fix 2 bug PPTX: Content_Types.xml phantom refs + chart
+ *        relationship path absolut (keduanya bikin "Repair" di PowerPoint)
+ *   v13 — tambah "Analisa Pencapaian" (ringkasan naratif otomatis)
  *   v12 — fix formula: Mutu = persentase Hit Tiba di FAM
  *   v11 — kartu ranking kedua pakai data Tiba di FAM (bukan Reliability)
  *   v10 — ranking dipisah per kategori (Truck/Darat vs Kontener/Laut)
  *   v9 — tambah tabel data mentah (Bulan|Hit|Miss|Plan|%) di bawah tiap
  *        chart + kartu ranking
- *   v8 — fix Content_Types.xml phantom slideMaster refs — masih Repair di
- *        real-world test, PPTX di-pause sementara
+ *   v8 — fix Content_Types.xml phantom slideMaster refs
  *   v7 — rewrite writeFile jadi re-zip manual (fix folder kosong & kompresi)
  *   v6 — fix null values in chart + dynamic axis scale + long name overlap
  *   v5 — fix timezone bug fmtDate() + cache-busting fetch()
@@ -302,8 +304,10 @@ function renderDetail(d) {
   const tbody = document.querySelector('#missTable tbody');
   const missEmpty = document.getElementById('missEmpty');
   if (d.missDetail && d.missDetail.length) {
+    const komponenColor = { 'Tiba di FAM': COLORS.teal, 'Tiba di Distributor': COLORS.deep, 'Reliability': COLORS.navy };
     tbody.innerHTML = d.missDetail.map(m => `
       <tr>
+        <td><span class="chip" style="background:#${komponenColor[m.komponen] || COLORS.grey}22;color:#${komponenColor[m.komponen] || COLORS.grey};margin:0;">${escapeHtml(m.komponen || '-')}</span></td>
         <td>${escapeHtml(m.bulan)}</td>
         <td>${escapeHtml(m.tujuan)}</td>
         <td>${escapeHtml(m.eta)}</td>
@@ -556,7 +560,7 @@ function buildMockDetail(nama, kategori, famMiss, distMiss) {
   for (let i = 0; i < totalMissCount; i++) {
     const sample = MISS_SAMPLES[(seed + i) % MISS_SAMPLES.length];
     const bln = bulan[i % bulan.length];
-    missDetail.push({ bulan: bln, tujuan: sample.tujuan, eta: sample.eta, ata: sample.ata, keterangan: sample.keterangan });
+    missDetail.push({ bulan: bln, tujuan: sample.tujuan, eta: sample.eta, ata: sample.ata, keterangan: sample.keterangan, komponen: i % 2 === 0 ? 'Tiba di Distributor' : 'Tiba di FAM' });
   }
   return {
     ekspedisi: nama,
@@ -783,13 +787,13 @@ async function generatePptx(d) {
     s7.addText(`${missCount} kejadian miss tercatat pada periode ini.`, { x: 0.6, y: 1.28, w: 11.5, h: 0.3, fontSize: 12, color: GREY, fontFace: 'Calibri', margin: 0 });
 
     if (missCount) {
-      const missHeader = ['Bulan', 'Tujuan', 'ETA', 'ATA/No Pol', 'Keterangan'].map(t => ({ text: t, options: { bold: true, color: WHITE, fill: { color: DEEP } } }));
+      const missHeader = ['Komponen', 'Bulan', 'Tujuan', 'ETA', 'ATA/No Pol', 'Keterangan'].map(t => ({ text: t, options: { bold: true, color: WHITE, fill: { color: DEEP } } }));
       const missTable = [missHeader];
       d.missDetail.slice(0, 12).forEach((m, i) => {
         const fill = i % 2 === 0 ? WHITE : LIGHT;
-        missTable.push([m.bulan, m.tujuan, m.eta, m.ata, m.keterangan].map(v => ({ text: String(v || ''), options: { fill: { color: fill }, color: NAVY } })));
+        missTable.push([m.komponen, m.bulan, m.tujuan, m.eta, m.ata, m.keterangan].map(v => ({ text: String(v || ''), options: { fill: { color: fill }, color: NAVY } })));
       });
-      s7.addTable(missTable, { x: 0.6, y: 1.8, w: 12.1, colW: [1.1, 4.5, 1.5, 1.8, 3.2], fontSize: 11, fontFace: 'Calibri', color: NAVY,
+      s7.addTable(missTable, { x: 0.6, y: 1.8, w: 12.1, colW: [1.6, 1.0, 4.0, 1.4, 1.6, 2.5], fontSize: 10, fontFace: 'Calibri', color: NAVY,
         border: { pt: 0.75, color: 'E2E8F0' }, autoPage: false, rowH: 0.5, valign: 'middle' });
     } else {
       s7.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 0.6, y: 2.0, w: 12.1, h: 1.5, rectRadius: 0.06, fill: { color: LIGHT } });
@@ -817,11 +821,23 @@ async function generatePptx(d) {
     const fileEntries = Object.keys(sourceZip.files).filter(name => !sourceZip.files[name].dir);
     const fileEntrySet = new Set(fileEntries.map(n => '/' + n));
 
+    // Hitung path relatif dari satu folder ke path lain (gaya POSIX), dipakai
+    // utk fix bug relationship Target di bawah.
+    function relativePath(fromDir, toAbsPath) {
+      const fromParts = fromDir.split('/').filter(Boolean);
+      const toParts = toAbsPath.split('/').filter(Boolean);
+      let i = 0;
+      while (i < fromParts.length && i < toParts.length && fromParts[i] === toParts[i]) i++;
+      const ups = fromParts.length - i;
+      const downs = toParts.slice(i);
+      return Array(ups).fill('..').concat(downs).join('/');
+    }
+
     await Promise.all(fileEntries.map(async (name) => {
       let content = await sourceZip.files[name].async('uint8array');
 
-      // FIX BUG BAWAAN pptxgenjs: [Content_Types].xml men-declare Override utk
-      // slideMaster2.xml..slideMasterN.xml (satu per slide) tapi cuma
+      // FIX BUG BAWAAN pptxgenjs #1: [Content_Types].xml men-declare Override
+      // utk slideMaster2.xml..slideMasterN.xml (satu per slide) tapi cuma
       // slideMaster1.xml yang benar-benar ditulis ke ZIP. PowerPoint asli
       // strict soal ini dan menolak file (LibreOffice/python-pptx cuek).
       // Solusi: hapus <Override> yang PartName-nya tidak match file asli.
@@ -829,6 +845,22 @@ async function generatePptx(d) {
         let xmlText = new TextDecoder('utf-8').decode(content);
         xmlText = xmlText.replace(/<Override[^>]*PartName="([^"]+)"[^>]*\/>/g, (match, partName) => {
           return fileEntrySet.has(partName) ? match : '';
+        });
+        content = new TextEncoder().encode(xmlText);
+      }
+
+      // FIX BUG BAWAAN pptxgenjs #2: relationship ke CHART pakai Target
+      // absolut ("/ppt/charts/chart1.xml"), padahal semua relationship lain
+      // (gambar, slideLayout, dll) pakai format relatif ("../media/...").
+      // PowerPoint strict & menolak format absolut ini utk chart. Solusi:
+      // ubah semua Target yang diawali "/" jadi path relatif yang benar.
+      if (name.endsWith('.rels')) {
+        let xmlText = new TextDecoder('utf-8').decode(content);
+        // Folder tempat file .rels ini "berlaku" = folder induk dari folder _rels itu sendiri
+        const relsDir = name.substring(0, name.lastIndexOf('/_rels/'));
+        xmlText = xmlText.replace(/Target="(\/[^"]+)"/g, (match, target) => {
+          const rel = relativePath(relsDir, target);
+          return 'Target="' + rel + '"';
         });
         content = new TextEncoder().encode(xmlText);
       }
