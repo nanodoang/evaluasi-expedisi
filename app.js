@@ -4,22 +4,24 @@ const LOGO_SMALL_B64 = "image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAHACAYAAAD
 
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v19 (2026-07-06) — FIX BUG KETIGA PPTX (akhirnya!) + ubah target
- *          FAM jadi 100%.
- *          Bug ketiga ditemukan dari bongkar file PPTX asli (SPA) yang
- *          dikirim Nano: chart KOMBO (bar+garis target, dipakai di semua
- *          slide detail komponen) mereferensikan 3 axId per plot
- *          (barChart & lineChart), tapi cuma 2 axis yang benar2 didefinisikan
- *          (catAx + valAx) — axId ke-3 "hantu" tanpa definisi axis sama
- *          sekali. PowerPoint strict & menolak ini. Sekarang axId yang tidak
- *          punya definisi otomatis dibuang saat proses re-zip.
- *          Sudah diverifikasi: 0 axId hantu, semua axis match definisinya,
- *          valid dibuka python-pptx & LibreOffice.
- *          Juga: target Tiba di FAM diubah dari 98% jadi 100%.
+ * VERSION: v20 (2026-07-06) — FIX BUG KEEMPAT PPTX (ditemukan dari bongkar
+ *          file PT. Sinar Cakra Buana yang dikirim Nano): ID shape
+ *          (p:cNvPr id) di beberapa slide BENTROK — misal sebuah Table
+ *          dapat ID yang SAMA PERSIS dengan Text Box yang sudah ada duluan
+ *          di slide yang sama. Counter ID internal pptxgenjs kacau kalau
+ *          campuran Text+Shape+Table+Chart banyak di 1 slide (persis
+ *          struktur slide ringkasan & slide detail komponen kita). Tiap
+ *          shape WAJIB ID unik dalam 1 slide per spek OOXML — PowerPoint
+ *          strict & langsung menolak kalau bentrok, sementara LibreOffice/
+ *          python-pptx cuek. Sekarang ID yang bentrok otomatis diberi ID
+ *          baru yang belum dipakai, saat proses re-zip.
+ *          Sudah diverifikasi: 0 ID shape bentrok, di semua slide, utk
+ *          skenario data lengkap maupun tidak lengkap.
  * VERSION HISTORY:
- *   v18 — 2 perbaikan besar: formula Mutu dipastikan (Hit FAM, Miss selalu
- *        0), missDetail dipisah jadi 3 objek independen (fam/distributor/
- *        reliability), bukan 1 array gabungan lagi
+ *   v19 — fix bug ketiga: axId hantu di chart kombo (bar+line) + target
+ *        FAM diubah dari 98% ke 100%
+ *   v18 — 2 perbaikan besar: formula Mutu dipastikan, missDetail dipisah
+ *        jadi 3 objek independen (fam/distributor/reliability)
  *   v17 — slide PPTX Mutu tidak tampilkan kolom Miss
  *   v16 — Mutu punya array bulanan sendiri (copy independen dari FAM)
  *   v15 — tabel miss tampilkan kolom Komponen + data komplain Reliability
@@ -938,6 +940,31 @@ async function generatePptx(d) {
         }
         xmlText = xmlText.replace(/<c:(barChart|lineChart|pieChart|areaChart|scatterChart|bar3DChart|line3DChart|doughnutChart|radarChart)>[\s\S]*?<\/c:\1>/g, (plotMatch) => {
           return plotMatch.replace(/<c:axId val="(\d+)"\/>/g, (full, id) => definedIds.has(id) ? full : '');
+        });
+        content = new TextEncoder().encode(xmlText);
+      }
+
+      // FIX BUG BAWAAN pptxgenjs #4: ID shape (p:cNvPr id) di beberapa slide
+      // BENTROK (mis. sebuah Table dapat ID yang sama persis dgn Text Box
+      // yang sudah ada duluan di slide yang sama) — counter ID internal
+      // pptxgenjs kacau kalau campuran Text+Shape+Table+Chart di 1 slide.
+      // Tiap shape WAJIB ID unik dalam 1 slide per spek OOXML, PowerPoint
+      // strict & menolak kalau ada yang bentrok. Solusi: deteksi ID yang
+      // sudah pernah muncul, kasih ID baru yang belum dipakai.
+      if (/^ppt\/slides\/slide\d+\.xml$/.test(name)) {
+        let xmlText = new TextDecoder('utf-8').decode(content);
+        let maxId = 0;
+        const idScanRe = /<p:cNvPr id="(\d+)"/g;
+        let im;
+        while ((im = idScanRe.exec(xmlText))) maxId = Math.max(maxId, parseInt(im[1], 10));
+        const seenIds = new Set();
+        xmlText = xmlText.replace(/<p:cNvPr id="(\d+)"/g, (full, id) => {
+          if (seenIds.has(id)) {
+            maxId++;
+            return '<p:cNvPr id="' + maxId + '"';
+          }
+          seenIds.add(id);
+          return full;
         });
         content = new TextEncoder().encode(xmlText);
       }
