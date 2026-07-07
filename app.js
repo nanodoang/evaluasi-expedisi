@@ -4,11 +4,14 @@ const LOGO_SMALL_B64 = "image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAHACAYAAAD
 
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v12 (2026-07-06) — FIX FORMULA (ikut Code.gs v8): Mutu sekarang
- *          = persentase Hit Tiba di FAM (dulu keliru pakai angka Reliability).
- *          Reliability tetap = Distributor/DOT dikurangi complain (sudah
- *          benar dari awal). Mock data "Data Contoh" juga disesuaikan.
+ * VERSION: v13 (2026-07-06) — Tambah "Analisa Pencapaian" di halaman detail:
+ *          ringkasan naratif otomatis (verdict keseluruhan, komponen yang
+ *          capai/belum capai target, tren naik/turun FAM & Distributor,
+ *          penyebab miss paling sering). Ranking sudah otomatis exclude
+ *          ekspedisi tanpa data (item[field] != null) sejak awal — dicek
+ *          ulang, sudah benar, tidak perlu diubah.
  * VERSION HISTORY:
+ *   v12 — fix formula: Mutu = persentase Hit Tiba di FAM
  *   v11 — kartu ranking kedua pakai data Tiba di FAM (bukan Reliability)
  *   v10 — ranking dipisah per kategori (Truck/Darat vs Kontener/Laut)
  *   v9 — tambah tabel data mentah (Bulan|Hit|Miss|Plan|%) di bawah tiap
@@ -294,6 +297,7 @@ function renderDetail(d) {
   fillDataTable('tableRel', d.bulanan.reliability);
 
   renderRanking(d.ekspedisi, d.kategori || findKategoriInList(d.ekspedisi));
+  renderAnalysis(d, r);
 
   const tbody = document.querySelector('#missTable tbody');
   const missEmpty = document.getElementById('missEmpty');
@@ -317,6 +321,73 @@ function renderDetail(d) {
 function findKategoriInList(ekspedisiName) {
   const found = (currentList || []).find(item => item.ekspedisi === ekspedisiName);
   return found ? found.kategori : null;
+}
+
+function renderAnalysis(d, r) {
+  const container = document.getElementById('analysisContent');
+  const points = [];
+
+  // 1) Verdict keseluruhan
+  const gradeVerdict = { A: 'sangat baik', B: 'baik', C: 'cukup, perlu perhatian', D: 'kurang, perlu tindak lanjut segera' }[r.grade] || 'belum bisa dinilai (data belum lengkap)';
+  if (r.totalSkor != null) {
+    points.push(`Secara keseluruhan, performa <b>${escapeHtml(d.ekspedisi)}</b> pada periode ini <b>${gradeVerdict}</b> dengan skor total <b>${r.totalSkor.toFixed(2)}%</b> (Grade ${r.grade}).`);
+  } else {
+    points.push(`Skor total belum bisa dihitung karena ada komponen yang datanya belum lengkap.`);
+  }
+
+  // 2) Komponen yang capai target vs tidak
+  const components = [
+    { label: 'Mutu', pct: r.mutu.pct, target: r.mutu.target },
+    { label: 'Tiba di FAM', pct: r.fam.pct, target: r.fam.target },
+    { label: 'Tiba di Distributor', pct: r.distributor.pct, target: r.distributor.target },
+    { label: 'Reliability', pct: r.reliability.pct, target: r.reliability.target }
+  ];
+  const tercapai = components.filter(c => c.pct != null && c.pct >= c.target);
+  const belumTercapai = components.filter(c => c.pct != null && c.pct < c.target);
+  const tanpaData = components.filter(c => c.pct == null);
+
+  if (tercapai.length) {
+    points.push(`Komponen yang <b>sudah mencapai target</b>: ${tercapai.map(c => `${c.label} (${c.pct.toFixed(2)}%)`).join(', ')}.`);
+  }
+  if (belumTercapai.length) {
+    const sorted = [...belumTercapai].sort((a, b) => (a.pct - a.target) - (b.pct - b.target));
+    const worst = sorted[0];
+    points.push(`Komponen yang <b style="color:#${COLORS.red};">belum mencapai target</b>: ${belumTercapai.map(c => `${c.label} (${c.pct.toFixed(2)}% dari target ${c.target}%)`).join(', ')}. Yang paling perlu diperhatikan: <b>${worst.label}</b>, selisih ${(worst.target - worst.pct).toFixed(2)} poin di bawah target.`);
+  }
+  if (tanpaData.length) {
+    points.push(`Data ${tanpaData.map(c => c.label).join(', ')} belum tersedia utk periode ini.`);
+  }
+
+  // 3) Tren bulanan (naik/turun) utk FAM & Distributor
+  function trendNote(label, monthly) {
+    const withData = (monthly || []).filter(m => m.pct != null);
+    if (withData.length < 2) return null;
+    const first = withData[0].pct, last = withData[withData.length - 1].pct;
+    const diff = last - first;
+    if (Math.abs(diff) < 0.5) return `${label} relatif stabil sepanjang periode (${first.toFixed(1)}% → ${last.toFixed(1)}%).`;
+    if (diff > 0) return `${label} <b style="color:#${COLORS.green};">membaik</b> dari ${first.toFixed(1)}% (${withData[0].bulan}) menjadi ${last.toFixed(1)}% (${withData[withData.length-1].bulan}).`;
+    return `${label} <b style="color:#${COLORS.red};">menurun</b> dari ${first.toFixed(1)}% (${withData[0].bulan}) menjadi ${last.toFixed(1)}% (${withData[withData.length-1].bulan}).`;
+  }
+  const trendFam = trendNote('Tiba di FAM', d.bulanan.fam);
+  const trendDist = trendNote('Tiba di Distributor', d.bulanan.distributor);
+  if (trendFam) points.push(trendFam);
+  if (trendDist) points.push(trendDist);
+
+  // 4) Root cause paling sering dari missDetail
+  if (d.missDetail && d.missDetail.length) {
+    const counts = {};
+    d.missDetail.forEach(m => {
+      const key = (m.kategoriIssue || m.keterangan || 'Lainnya').trim() || 'Lainnya';
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    const sortedCauses = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const [topCause, topCount] = sortedCauses[0];
+    points.push(`Tercatat <b>${d.missDetail.length} kejadian miss</b> pada periode ini. Penyebab paling sering: <b>${escapeHtml(topCause)}</b> (${topCount} kejadian).`);
+  } else {
+    points.push(`Tidak ada kejadian miss tercatat pada periode ini — performa Delivery Time bersih dari insiden.`);
+  }
+
+  container.innerHTML = '<ul style="margin:0;padding-left:18px;">' + points.map(p => `<li style="margin-bottom:8px;">${p}</li>`).join('') + '</ul>';
 }
 
 function fillDataTable(tableId, monthly) {
