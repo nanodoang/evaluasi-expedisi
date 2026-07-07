@@ -1,22 +1,15 @@
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v21 (2026-07-06) — PERUBAHAN ARSITEKTUR BESAR: generate PPTX
- *          dipindah TOTAL dari browser (pptxgenjs) ke SERVER (Google Slides
- *          API via Code.gs). Setelah pptxgenjs terbukti punya 4 bug bawaan
- *          berbeda yang berturut-turut bikin PowerPoint minta "Repair"
- *          (Content_Types phantom refs, chart relationship path absolut,
- *          orphan axId, ID shape bentrok) — dan bahkan setelah SEMUA itu
- *          diperbaiki & diverifikasi lolos 18 kategori pengecekan, tetap
- *          masih ada laporan "Repair" — diputuskan pindah total ke mesin
- *          resmi Google (Slides API + export ke .pptx via Drive), yang jauh
- *          lebih andal drpd library pihak ketiga.
- *          Efek samping bagus: file app.js sekarang jauh lebih KECIL (dari
- *          ~585 KB jadi ~35 KB) karena tidak perlu lagi nyimpen gambar
- *          background/logo dalam base64 — ini juga bikin file lebih gampang
- *          dibuka di editor teks biasa (dulu sering gagal dibuka Notepad).
- *          Perlu Code.gs v16 (backend baru dgn action=pptx).
+ * VERSION: v22 (2026-07-06) — Tambah panel "Data Mentah (Cek Sumber Angka)"
+ *          otomatis di halaman detail — begitu buka ekspedisi, langsung
+ *          kelihatan baris mentah dari rtc/data miss pa/Dot/complain utk
+ *          ekspedisi itu. TIDAK PERLU lagi jalankan debugRtc/debugDot dkk
+ *          manual dari Apps Script editor. Perlu Code.gs v17 (action baru
+ *          "debugRaw").
  * VERSION HISTORY:
- *   v20 — fix bug ke-4: ID shape bentrok
+ *   v21 — PPTX dipindah total ke server (Google Slides API), app.js jauh
+ *        lebih kecil (~35KB, dulu ~585KB)
+ *   v20 — fix bug ke-4 pptxgenjs: ID shape bentrok
  *   v19 — fix bug ke-3: axId hantu di chart kombo + target FAM jadi 100%
  *   v18 — formula Mutu dipastikan, missDetail dipisah jadi 3 objek independen
  *   v17 — slide PPTX Mutu tidak tampilkan kolom Miss
@@ -311,6 +304,7 @@ function renderDetail(d) {
 
   renderRanking(d.ekspedisi, d.kategori || findKategoriInList(d.ekspedisi));
   renderAnalysis(d, r);
+  loadRawDebugData(d);
 
   fillMissTable('missTableFam', 'missEmptyFam', d.missDetail && d.missDetail.fam);
   fillMissTable('missTableDist', 'missEmptyDist', d.missDetail && d.missDetail.distributor);
@@ -341,6 +335,65 @@ function fillMissTable(tableId, emptyId, rows) {
 function findKategoriInList(ekspedisiName) {
   const found = (currentList || []).find(item => item.ekspedisi === ekspedisiName);
   return found ? found.kategori : null;
+}
+
+async function loadRawDebugData(d) {
+  const container = document.getElementById('rawDebugContent');
+
+  if (window.__mockLookup && window.__mockLookup[d.ekspedisi]) {
+    container.innerHTML = '<div style="color:var(--grey);">Mode "Data Contoh" tidak punya data mentah asli (perlu "Muat Data" dari Google Sheets).</div>';
+    return;
+  }
+  if (!apiUrl) {
+    container.innerHTML = '<div style="color:var(--grey);">URL Web App belum diatur (klik ⚙︎).</div>';
+    return;
+  }
+
+  container.innerHTML = 'Memuat data mentah...';
+  try {
+    const from = d.periode.from ? d.periode.from.slice(0, 10) : '';
+    const to = d.periode.to ? d.periode.to.slice(0, 10) : '';
+    const kode = d.kode || d.ekspedisi;
+    const url = `${apiUrl}?action=debugRaw&expedisi=${encodeURIComponent(kode)}&from=${from}&to=${to}`;
+    const res = await apiFetch(url);
+    if (res.error) throw new Error(res.error);
+    renderRawDebugData(res);
+  } catch (e) {
+    container.innerHTML = `<div style="color:#${COLORS.red};">⚠ Gagal memuat data mentah: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderRawDebugData(res) {
+  const container = document.getElementById('rawDebugContent');
+
+  function jsonBlock(obj) {
+    return `<pre style="background:var(--light);padding:8px;border-radius:6px;overflow-x:auto;font-size:11px;margin:4px 0 12px;white-space:pre-wrap;word-break:break-word;">${escapeHtml(JSON.stringify(obj, null, 2))}</pre>`;
+  }
+
+  container.innerHTML = `
+    <details open style="margin-bottom:10px;">
+      <summary style="cursor:pointer;font-weight:700;color:var(--teal);">📦 rtc (sumber Hit Tiba di FAM)</summary>
+      <div style="color:var(--grey);margin:4px 0;">${escapeHtml(res.rtc.catatan)}</div>
+      ${jsonBlock(res.rtc.ringkasanPerBulan)}
+    </details>
+    <details style="margin-bottom:10px;">
+      <summary style="cursor:pointer;font-weight:700;color:var(--teal);">📦 data miss pa (sumber Miss Tiba di FAM) — ${res.dataMissPa.detail.length} baris</summary>
+      <div style="color:var(--grey);margin:4px 0;">${escapeHtml(res.dataMissPa.catatan)}</div>
+      ${jsonBlock(res.dataMissPa.ringkasanPerBulan)}
+      ${jsonBlock(res.dataMissPa.detail)}
+    </details>
+    <details style="margin-bottom:10px;">
+      <summary style="cursor:pointer;font-weight:700;color:var(--teal);">📦 Dot (sumber Tiba di Distributor) — ${res.dot.totalBaris} baris</summary>
+      <div style="color:var(--grey);margin:4px 0;">${escapeHtml(res.dot.catatan)}</div>
+      ${jsonBlock(res.dot.baris)}
+    </details>
+    <details style="margin-bottom:10px;">
+      <summary style="cursor:pointer;font-weight:700;color:var(--teal);">📦 complain brg kurang (sumber pengurang Reliability/Mutu) — ${res.complain.totalBaris} baris</summary>
+      <div style="color:var(--grey);margin:4px 0;">${escapeHtml(res.complain.catatan)}</div>
+      ${jsonBlock(res.complain.baris)}
+    </details>
+    <div style="color:var(--grey);font-size:11px;">Kode dicari: <b>${escapeHtml(res.kode)}</b> · Periode: ${escapeHtml(res.periode.from || '-')} s/d ${escapeHtml(res.periode.to || '-')}</div>
+  `;
 }
 
 function renderAnalysis(d, r) {
