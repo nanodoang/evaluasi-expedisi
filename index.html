@@ -85,7 +85,7 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
 
 <header>
   <div class="eyebrow">PT. UNIFAM — Divisi Logistik & Transportasi</div>
-  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v17</span></h1>
+  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v18</span></h1>
   <div class="period-bar">
     <input type="month" id="fromMonth">
     <span style="color:rgba(255,255,255,.6);font-size:12px;">s/d</span>
@@ -148,20 +148,37 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
     <div class="chart-card"><h3>Tren Bulanan — Tiba di FAM</h3><canvas id="chartFam" height="140"></canvas>
       <div class="data-table-wrap" style="overflow-x:auto;margin-top:10px;"><table class="miss-table" id="tableFam"><thead><tr><th>Bulan</th><th>Hit</th><th>Miss</th><th>Plan</th><th>%</th></tr></thead><tbody></tbody></table></div>
     </div>
+    <div class="chart-card" style="overflow-x:auto;">
+      <h3>Detail Kejadian Miss — Tiba di FAM</h3>
+      <table class="miss-table" id="missTableFam">
+        <thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>ATA/No Pol</th><th>Keterangan</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="missEmptyFam" class="empty" style="display:none;padding:16px;">Tidak ada kejadian miss Tiba di FAM pada periode ini.</div>
+    </div>
+
     <div class="chart-card"><h3>Tren Bulanan — Tiba di Distributor</h3><canvas id="chartDist" height="140"></canvas>
       <div class="data-table-wrap" style="overflow-x:auto;margin-top:10px;"><table class="miss-table" id="tableDist"><thead><tr><th>Bulan</th><th>Hit</th><th>Miss</th><th>Plan</th><th>%</th></tr></thead><tbody></tbody></table></div>
     </div>
+    <div class="chart-card" style="overflow-x:auto;">
+      <h3>Detail Kejadian Miss — Tiba di Distributor</h3>
+      <table class="miss-table" id="missTableDist">
+        <thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>ATA/No Pol</th><th>Keterangan</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div id="missEmptyDist" class="empty" style="display:none;padding:16px;">Tidak ada kejadian miss Tiba di Distributor pada periode ini.</div>
+    </div>
+
     <div class="chart-card"><h3>Tren Bulanan — Reliability</h3><canvas id="chartRel" height="140"></canvas>
       <div class="data-table-wrap" style="overflow-x:auto;margin-top:10px;"><table class="miss-table" id="tableRel"><thead><tr><th>Bulan</th><th>Hit</th><th>Miss</th><th>Plan</th><th>%</th></tr></thead><tbody></tbody></table></div>
     </div>
-
-    <div class="section-title">Detail Kejadian Miss</div>
     <div class="chart-card" style="overflow-x:auto;">
-      <table class="miss-table" id="missTable">
-        <thead><tr><th>Komponen</th><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>ATA/No Pol</th><th>Keterangan</th></tr></thead>
+      <h3>Detail Kejadian Miss — Reliability</h3>
+      <table class="miss-table" id="missTableRel">
+        <thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>ATA/No Pol</th><th>Keterangan</th></tr></thead>
         <tbody></tbody>
       </table>
-      <div id="missEmpty" class="empty" style="display:none;padding:16px;">Tidak ada kejadian miss pada periode ini.</div>
+      <div id="missEmptyRel" class="empty" style="display:none;padding:16px;">Tidak ada komplain Reliability pada periode ini.</div>
     </div>
 
     <div class="section-title">Analisa Pencapaian</div>
