@@ -4,13 +4,20 @@ const LOGO_SMALL_B64 = "image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA4QAAAHACAYAAAD
 
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v17 (2026-07-06) — Slide PPTX "Mutu" sekarang TIDAK tampilkan
- *          kolom "Miss" (cuma Bulan|Hit|Plan|%) — dikonfirmasi Nano: Mutu
- *          angkanya memang sama persis dgn Tiba di FAM (itu benar, sesuai
- *          formula), tapi Mutu tidak punya konsep "Miss" sendiri jadi tidak
- *          perlu ditampilkan kolomnya (biar tidak terkesan data "menyatu"
- *          dgn FAM). Hit/Plan/% tetap sama nilainya dgn FAM.
+ * VERSION: v18 (2026-07-06) — 2 PERBAIKAN BESAR sesuai konfirmasi Nano:
+ *          1. Formula Mutu DIPASTIKAN: Hit = Hit Tiba di FAM apa adanya,
+ *             Miss SELALU 0 (terpisah total dari data Miss FAM), Plan = Hit
+ *             itu sendiri — jadi Mutu = 100% selama ada data Hit sama sekali.
+ *             (dikonfirmasi via contoh: FAM Hit=90,Miss=10,Plan=100(90%) ->
+ *             Mutu: Hit=90,Miss=0,Plan=90,jadi 100%)
+ *          2. missDetail TIDAK LAGI 1 array gabungan dgn kolom "Komponen" —
+ *             sekarang objek terpisah { fam, distributor, reliability },
+ *             masing-masing tabelnya sendiri baik di dashboard (3 tabel
+ *             terpisah persis di bawah tren masing-masing komponen) maupun
+ *             di PPTX (3 slide terpisah, bukan 1 slide gabungan lagi — PPTX
+ *             sekarang 10 slide, bukan 8).
  * VERSION HISTORY:
+ *   v17 — slide PPTX Mutu tidak tampilkan kolom Miss
  *   v16 — Mutu punya array bulanan sendiri (copy independen dari FAM)
  *   v15 — tabel miss tampilkan kolom Komponen + data komplain Reliability
  *   v14 — fix 2 bug PPTX: Content_Types.xml phantom refs + chart
@@ -303,24 +310,29 @@ function renderDetail(d) {
   renderRanking(d.ekspedisi, d.kategori || findKategoriInList(d.ekspedisi));
   renderAnalysis(d, r);
 
-  const tbody = document.querySelector('#missTable tbody');
-  const missEmpty = document.getElementById('missEmpty');
-  if (d.missDetail && d.missDetail.length) {
-    const komponenColor = { 'Tiba di FAM': COLORS.teal, 'Tiba di Distributor': COLORS.deep, 'Reliability': COLORS.navy };
-    tbody.innerHTML = d.missDetail.map(m => `
+  fillMissTable('missTableFam', 'missEmptyFam', d.missDetail && d.missDetail.fam);
+  fillMissTable('missTableDist', 'missEmptyDist', d.missDetail && d.missDetail.distributor);
+  fillMissTable('missTableRel', 'missEmptyRel', d.missDetail && d.missDetail.reliability);
+}
+
+// Render 1 tabel detail-miss utk 1 komponen SAJA (tidak digabung dgn komponen lain)
+function fillMissTable(tableId, emptyId, rows) {
+  const tbody = document.querySelector(`#${tableId} tbody`);
+  const emptyEl = document.getElementById(emptyId);
+  if (rows && rows.length) {
+    tbody.innerHTML = rows.map(m => `
       <tr>
-        <td><span class="chip" style="background:#${komponenColor[m.komponen] || COLORS.grey}22;color:#${komponenColor[m.komponen] || COLORS.grey};margin:0;">${escapeHtml(m.komponen || '-')}</span></td>
         <td>${escapeHtml(m.bulan)}</td>
         <td>${escapeHtml(m.tujuan)}</td>
         <td>${escapeHtml(m.eta)}</td>
         <td>${escapeHtml(m.ata)}</td>
         <td>${escapeHtml(m.keterangan)}</td>
       </tr>`).join('');
-    document.getElementById('missTable').style.display = 'table';
-    missEmpty.style.display = 'none';
+    document.getElementById(tableId).style.display = 'table';
+    emptyEl.style.display = 'none';
   } else {
-    document.getElementById('missTable').style.display = 'none';
-    missEmpty.style.display = 'block';
+    document.getElementById(tableId).style.display = 'none';
+    emptyEl.style.display = 'block';
   }
 }
 
@@ -379,18 +391,33 @@ function renderAnalysis(d, r) {
   if (trendFam) points.push(trendFam);
   if (trendDist) points.push(trendDist);
 
-  // 4) Root cause paling sering dari missDetail
-  if (d.missDetail && d.missDetail.length) {
-    const counts = {};
-    d.missDetail.forEach(m => {
-      const key = (m.kategoriIssue || m.keterangan || 'Lainnya').trim() || 'Lainnya';
-      counts[key] = (counts[key] || 0) + 1;
-    });
-    const sortedCauses = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    const [topCause, topCount] = sortedCauses[0];
-    points.push(`Tercatat <b>${d.missDetail.length} kejadian miss</b> pada periode ini. Penyebab paling sering: <b>${escapeHtml(topCause)}</b> (${topCount} kejadian).`);
+  // 4) Root cause paling sering, dihitung per komponen (data terpisah, tidak digabung)
+  const missFam = (d.missDetail && d.missDetail.fam) || [];
+  const missDist = (d.missDetail && d.missDetail.distributor) || [];
+  const missRel = (d.missDetail && d.missDetail.reliability) || [];
+  const totalMissCount = missFam.length + missDist.length + missRel.length;
+
+  if (totalMissCount) {
+    const parts = [];
+    if (missDist.length) parts.push(`${missDist.length} miss Tiba di Distributor`);
+    if (missFam.length) parts.push(`${missFam.length} miss Tiba di FAM`);
+    if (missRel.length) parts.push(`${missRel.length} komplain Reliability`);
+    points.push(`Tercatat total <b>${totalMissCount} kejadian</b> pada periode ini: ${parts.join(', ')}.`);
+
+    function topCauseOf(rows) {
+      if (!rows.length) return null;
+      const counts = {};
+      rows.forEach(m => {
+        const key = (m.kategoriIssue || m.keterangan || 'Lainnya').trim() || 'Lainnya';
+        counts[key] = (counts[key] || 0) + 1;
+      });
+      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      return sorted[0];
+    }
+    const topDist = topCauseOf(missDist);
+    if (topDist) points.push(`Penyebab miss Distributor paling sering: <b>${escapeHtml(topDist[0])}</b> (${topDist[1]} kejadian).`);
   } else {
-    points.push(`Tidak ada kejadian miss tercatat pada periode ini — performa Delivery Time bersih dari insiden.`);
+    points.push(`Tidak ada kejadian miss tercatat pada periode ini — performa Delivery Time & Reliability bersih dari insiden.`);
   }
 
   container.innerHTML = '<ul style="margin:0;padding-left:18px;">' + points.map(p => `<li style="margin-bottom:8px;">${p}</li>`).join('') + '</ul>';
@@ -554,29 +581,41 @@ function buildMockDetail(nama, kategori, famMiss, distMiss) {
   const distMonthly = mockMonthly(hitDist, missDist, bulan);
   const paMonthly = mockMonthly(hitPa, missPa, bulan);
   const famPct = avgPct(famMonthly), distPct = avgPct(distMonthly), paPct = avgPct(paMonthly);
-  const total = Math.round((WEIGHTS.mutu * famPct + WEIGHTS.fam * famPct + WEIGHTS.distributor * distPct + WEIGHTS.reliability * paPct) * 100) / 100;
-  const totalMissCount = sumArr(famMiss) + sumArr(distMiss);
-  const missDetail = [];
+  const famTotalHit = sumArr(hitFam);
+  // Mutu = Hit Tiba di FAM apa adanya, Miss SELALU 0 (terpisah dari Miss FAM)
+  const mutuPct = famTotalHit > 0 ? 100 : null;
+  const mutuMonthly = famMonthly.map(m => ({ bulan: m.bulan, hit: m.hit, miss: 0, plan: m.hit, pct: m.hit > 0 ? 100 : null }));
+  const total = Math.round(((mutuPct || 0) * WEIGHTS.mutu + WEIGHTS.fam * famPct + WEIGHTS.distributor * distPct + WEIGHTS.reliability * paPct) * 100) / 100;
+
+  // Detail miss dipisah per komponen (TIDAK digabung jadi satu array)
   let seed = 0;
-  for (let i = 0; i < nama.length; i++) seed += nama.charCodeAt(i); // simple per-nama offset biar variatif
-  for (let i = 0; i < totalMissCount; i++) {
+  for (let i = 0; i < nama.length; i++) seed += nama.charCodeAt(i); // offset biar variatif per-ekspedisi
+
+  const missDetailFam = [];
+  for (let i = 0; i < sumArr(missFam); i++) {
     const sample = MISS_SAMPLES[(seed + i) % MISS_SAMPLES.length];
-    const bln = bulan[i % bulan.length];
-    missDetail.push({ bulan: bln, tujuan: sample.tujuan, eta: sample.eta, ata: sample.ata, keterangan: sample.keterangan, komponen: i % 2 === 0 ? 'Tiba di Distributor' : 'Tiba di FAM' });
+    missDetailFam.push({ bulan: bulan[i % bulan.length], tujuan: sample.tujuan, eta: sample.eta, ata: sample.ata, keterangan: sample.keterangan });
   }
+  const missDetailDist = [];
+  for (let i = 0; i < sumArr(missDist); i++) {
+    const sample = MISS_SAMPLES[(seed + i + 3) % MISS_SAMPLES.length];
+    missDetailDist.push({ bulan: bulan[i % bulan.length], tujuan: sample.tujuan, eta: sample.eta, ata: sample.ata, keterangan: sample.keterangan });
+  }
+  const missDetailRel = []; // demo: anggap tidak ada komplain reliability drpd bikin data contoh terlalu ramai
+
   return {
     ekspedisi: nama,
     periode: { from: '2026-04-01', to: '2026-06-30' },
     ringkasan: {
-      mutu: { pct: famPct, target: TARGETS.mutu }, // Mutu = persentase Hit Tiba di FAM
+      mutu: { pct: mutuPct, target: TARGETS.mutu },
       fam: { hit: sumArr(hitFam), miss: sumArr(missFam), plan: sumArr(hitFam) + sumArr(missFam), pct: famPct, target: TARGETS.fam },
       distributor: { hit: sumArr(hitDist), miss: sumArr(missDist), plan: sumArr(hitDist) + sumArr(missDist), pct: distPct, target: TARGETS.distributor },
       reliability: { hit: sumArr(hitPa), miss: sumArr(missPa), plan: sumArr(hitPa) + sumArr(missPa), pct: paPct, target: TARGETS.reliability },
       totalSkor: total,
       grade: total >= 97 ? 'A' : total >= 94 ? 'B' : total >= 91 ? 'C' : 'D'
     },
-    bulanan: { mutu: famMonthly.map(m => ({ ...m })), fam: famMonthly, distributor: distMonthly, reliability: paMonthly },
-    missDetail,
+    bulanan: { mutu: mutuMonthly, fam: famMonthly, distributor: distMonthly, reliability: paMonthly },
+    missDetail: { fam: missDetailFam, distributor: missDetailDist, reliability: missDetailRel },
     kategori
   };
 }
@@ -787,30 +826,35 @@ async function generatePptx(d) {
     detailSlide(5, 'Komponen 2b — Bobot 50% (DOT)', 'Delivery Time: Tiba di Distributor', 'Ketepatan waktu kedatangan barang di lokasi distributor tujuan akhir.', d.bulanan.distributor, r.distributor.target);
     detailSlide(6, 'Komponen 3 — Bobot 20%', 'Reliability', 'Konsistensi pemenuhan armada terhadap rencana pengiriman (plan).', d.bulanan.reliability, r.reliability.target);
 
-    // SLIDE 7: DETAIL MISS
-    let s7 = pres.addSlide();
-    s7.background = { color: WHITE };
-    sectionHeader(s7, 'Root Cause', 'Detail Kejadian Miss – Delivery Time');
-    const missCount = d.missDetail ? d.missDetail.length : 0;
-    s7.addText(`${missCount} kejadian miss tercatat pada periode ini.`, { x: 0.6, y: 1.28, w: 11.5, h: 0.3, fontSize: 12, color: GREY, fontFace: 'Calibri', margin: 0 });
+    // SLIDE 7-9: DETAIL MISS — TERPISAH per komponen (tidak digabung)
+    function missDetailSlide(pageNum, komponenLabel, rows, emptyMessage) {
+      let s = pres.addSlide();
+      s.background = { color: WHITE };
+      sectionHeader(s, 'Root Cause', `Detail Kejadian Miss – ${komponenLabel}`);
+      const count = rows ? rows.length : 0;
+      s.addText(`${count} kejadian tercatat pada periode ini.`, { x: 0.6, y: 1.28, w: 11.5, h: 0.3, fontSize: 12, color: GREY, fontFace: 'Calibri', margin: 0 });
 
-    if (missCount) {
-      const missHeader = ['Komponen', 'Bulan', 'Tujuan', 'ETA', 'ATA/No Pol', 'Keterangan'].map(t => ({ text: t, options: { bold: true, color: WHITE, fill: { color: DEEP } } }));
-      const missTable = [missHeader];
-      d.missDetail.slice(0, 12).forEach((m, i) => {
-        const fill = i % 2 === 0 ? WHITE : LIGHT;
-        missTable.push([m.komponen, m.bulan, m.tujuan, m.eta, m.ata, m.keterangan].map(v => ({ text: String(v || ''), options: { fill: { color: fill }, color: NAVY } })));
-      });
-      s7.addTable(missTable, { x: 0.6, y: 1.8, w: 12.1, colW: [1.6, 1.0, 4.0, 1.4, 1.6, 2.5], fontSize: 10, fontFace: 'Calibri', color: NAVY,
-        border: { pt: 0.75, color: 'E2E8F0' }, autoPage: false, rowH: 0.5, valign: 'middle' });
-    } else {
-      s7.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 0.6, y: 2.0, w: 12.1, h: 1.5, rectRadius: 0.06, fill: { color: LIGHT } });
-      s7.addText('Tidak ada kejadian miss pada periode ini — performa Delivery Time sepenuhnya sesuai target.',
-        { x: 1.0, y: 2.0, w: 11.3, h: 1.5, fontSize: 14, color: GREEN, bold: true, valign: 'middle', fontFace: 'Calibri', margin: 0 });
+      if (count) {
+        const missHeader = ['Bulan', 'Tujuan', 'ETA', 'ATA/No Pol', 'Keterangan'].map(t => ({ text: t, options: { bold: true, color: WHITE, fill: { color: DEEP } } }));
+        const missTable = [missHeader];
+        rows.slice(0, 14).forEach((m, i) => {
+          const fill = i % 2 === 0 ? WHITE : LIGHT;
+          missTable.push([m.bulan, m.tujuan, m.eta, m.ata, m.keterangan].map(v => ({ text: String(v || ''), options: { fill: { color: fill }, color: NAVY } })));
+        });
+        s.addTable(missTable, { x: 0.6, y: 1.8, w: 12.1, colW: [1.1, 4.5, 1.5, 1.8, 3.2], fontSize: 11, fontFace: 'Calibri', color: NAVY,
+          border: { pt: 0.75, color: 'E2E8F0' }, autoPage: false, rowH: 0.5, valign: 'middle' });
+      } else {
+        s.addShape(pres.shapes.ROUNDED_RECTANGLE, { x: 0.6, y: 2.0, w: 12.1, h: 1.5, rectRadius: 0.06, fill: { color: LIGHT } });
+        s.addText(emptyMessage, { x: 1.0, y: 2.0, w: 11.3, h: 1.5, fontSize: 14, color: GREEN, bold: true, valign: 'middle', fontFace: 'Calibri', margin: 0 });
+      }
+      footer(s, pageNum);
     }
-    footer(s7, 7);
 
-    // SLIDE 8: PENUTUP (sesuai template resmi "Terima Kasih")
+    missDetailSlide(7, 'Tiba di FAM', d.missDetail && d.missDetail.fam, 'Tidak ada kejadian miss Tiba di FAM pada periode ini.');
+    missDetailSlide(8, 'Tiba di Distributor', d.missDetail && d.missDetail.distributor, 'Tidak ada kejadian miss Tiba di Distributor pada periode ini.');
+    missDetailSlide(9, 'Reliability (Komplain Barang Kurang/Rusak)', d.missDetail && d.missDetail.reliability, 'Tidak ada komplain Reliability pada periode ini.');
+
+    // SLIDE 10: PENUTUP (sesuai template resmi "Terima Kasih")
     let s8 = pres.addSlide();
     s8.background = { color: WHITE };
     s8.addImage({ data: LOGO_BIG_B64, x: 2.59, y: 2.02, w: 8.16, h: 3.13, sizing: { type: 'contain', w: 8.16, h: 3.13 } });
