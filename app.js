@@ -1,13 +1,21 @@
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v25 (2026-07-06) — LENGKAPI halaman "Monitoring" (DOT +
- *          Pemenuhan Armada + Cost Ratio) yang scaffolding HTML-nya sudah
- *          ada tapi logic-nya belum: openMonitoring() sempat dipanggil tapi
- *          tidak pernah didefinisikan (bakal error kalau diklik). Sekarang
- *          lengkap: kartu MTD/YTD, chart batang mingguan (DOT, Pemenuhan
- *          Armada, Cost Ratio), tabel data per komponen, detail kejadian
- *          miss/komplain, dan analisa otomatis. Perlu Code.gs v35+.
+ * VERSION: v27 (2026-07-06) — FIX BUG: klik "Monitoring" langsung (tanpa
+ *          pernah "Muat Data"/"Data Contoh" dulu di halaman Evaluasi) bikin
+ *          input tanggal (fromMonth/toMonth) masih kosong, terkirim sbg
+ *          tanggal kosong/rusak ke server — mungkin ini yg bikin Nano
+ *          ngerasa "diminta pilih ekspedisi dulu" (padahal sebenarnya
+ *          gagal krn tanggal kosong). Sekarang ada default otomatis: 3
+ *          bulan terakhir s/d bulan berjalan, kalau tanggal belum diisi.
  * VERSION HISTORY:
+ *   v26 — FIX: halaman "Monitoring" sekarang otomatis tampilkan data
+ *        GABUNGAN SEMUA EKSPEDISI begitu diklik (tanpa perlu pilih
+ *        ekspedisi dulu) — sebelumnya keliru minta pilih 1 ekspedisi dulu.
+ *        Dropdown ekspedisi jadi OPSIONAL, buat drill-down ke 1 ekspedisi
+ *        saja. Perlu Code.gs v36+.
+ *   v25 — LENGKAPI halaman "Monitoring" (DOT + Pemenuhan Armada + Cost
+ *        Ratio): kartu MTD/YTD, chart batang mingguan, tabel data, detail
+ *        miss/komplain, analisa otomatis.
  *   v24 — FIX PERFORMA: panel "Data Mentah" jadi tombol manual (dulu
  *        otomatis dimuat tiap buka detail, bikin lemot)
  *   v23 — 2 update: formula Reliability balik ke Total DOT sbg basis,
@@ -261,17 +269,38 @@ document.getElementById('navMonitoringBtn').onclick = () => {
   document.getElementById('listView').style.display = 'none';
   document.getElementById('detailView').style.display = 'none';
   document.getElementById('monitoringView').style.display = 'block';
+
+  // PENTING: kalau input tanggal (fromMonth/toMonth) masih kosong (belum
+  // pernah diisi di halaman Evaluasi), jangan kirim tanggal kosong ke
+  // server — itu bikin proses gagal. Kasih default: 3 bulan terakhir s/d
+  // bulan berjalan.
+  const fromEl = document.getElementById('fromMonth');
+  const toEl = document.getElementById('toMonth');
+  if (!fromEl.value || !toEl.value) {
+    const now = new Date();
+    const from3moAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    toEl.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    fromEl.value = `${from3moAgo.getFullYear()}-${String(from3moAgo.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  // Langsung tampilkan data GABUNGAN SEMUA ekspedisi (bukan nunggu pilih
+  // dropdown dulu) — itu tampilan default halaman Monitoring.
+  openMonitoring('ALL', fromEl.value, toEl.value);
 };
 
 document.getElementById('goExpedisiBtn').onclick = () => {
   const sel = document.getElementById('expedisiSelect');
   const nama = sel.value;
-  if (!nama) { alert('Pilih ekspedisi dulu dari daftar dropdown (muat data / data contoh dulu kalau dropdown masih kosong).'); return; }
+  const from = sel.dataset.from || document.getElementById('fromMonth').value;
+  const to = sel.dataset.to || document.getElementById('toMonth').value;
   if (currentPage === 'monitoring') {
-    openMonitoring(nama, sel.dataset.from, sel.dataset.to);
-  } else {
-    openDetail(nama, sel.dataset.from, sel.dataset.to);
+    // Di halaman Monitoring, dropdown ini OPSIONAL — kalau kosong, tetap
+    // tampilkan gabungan SEMUA ekspedisi (bukan minta pilih dulu).
+    openMonitoring(nama || 'ALL', from, to);
+    return;
   }
+  if (!nama) { alert('Pilih ekspedisi dulu dari daftar dropdown (muat data / data contoh dulu kalau dropdown masih kosong).'); return; }
+  openDetail(nama, from, to);
 };
 
 function fmtPct(v) { return v == null ? '-' : v.toFixed(1) + '%'; }
