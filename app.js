@@ -1,12 +1,15 @@
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v24 (2026-07-06) — FIX PERFORMA: panel "Data Mentah" dulu
- *          otomatis dimuat tiap buka detail ekspedisi — ini bikin lemot
- *          krn setiap buka detail jadi 2x kerja di backend (baca ulang
- *          semua tab dua kali: sekali utk data asli, sekali lagi utk panel
- *          debug). Sekarang jadi tombol manual ("🔍 Tampilkan Data
- *          Mentah") — cuma dimuat kalau memang mau dicek.
+ * VERSION: v25 (2026-07-06) — LENGKAPI halaman "Monitoring" (DOT +
+ *          Pemenuhan Armada + Cost Ratio) yang scaffolding HTML-nya sudah
+ *          ada tapi logic-nya belum: openMonitoring() sempat dipanggil tapi
+ *          tidak pernah didefinisikan (bakal error kalau diklik). Sekarang
+ *          lengkap: kartu MTD/YTD, chart batang mingguan (DOT, Pemenuhan
+ *          Armada, Cost Ratio), tabel data per komponen, detail kejadian
+ *          miss/komplain, dan analisa otomatis. Perlu Code.gs v35+.
  * VERSION HISTORY:
+ *   v24 — FIX PERFORMA: panel "Data Mentah" jadi tombol manual (dulu
+ *        otomatis dimuat tiap buka detail, bikin lemot)
  *   v23 — 2 update: formula Reliability balik ke Total DOT sbg basis,
  *        tambah ringkasan penyebab miss Distributor (chip berwarna)
  *   v22 — panel "Data Mentah" otomatis di halaman detail
@@ -238,11 +241,37 @@ function populateExpedisiSelect(names, fromVal, toVal) {
   sel.dataset.to = toVal || '';
 }
 
+let currentPage = 'evaluasi'; // 'evaluasi' | 'monitoring'
+
+document.getElementById('navEvaluasiBtn').onclick = () => {
+  currentPage = 'evaluasi';
+  document.getElementById('navEvaluasiBtn').className = 'btn';
+  document.getElementById('navMonitoringBtn').className = 'btn secondary';
+  document.getElementById('navMonitoringBtn').style.background = 'rgba(255,255,255,.12)';
+  document.getElementById('monitoringView').style.display = 'none';
+  document.getElementById('detailView').style.display = 'none';
+  document.getElementById('listView').style.display = 'block';
+};
+
+document.getElementById('navMonitoringBtn').onclick = () => {
+  currentPage = 'monitoring';
+  document.getElementById('navMonitoringBtn').className = 'btn';
+  document.getElementById('navMonitoringBtn').style.background = '';
+  document.getElementById('navEvaluasiBtn').className = 'btn secondary';
+  document.getElementById('listView').style.display = 'none';
+  document.getElementById('detailView').style.display = 'none';
+  document.getElementById('monitoringView').style.display = 'block';
+};
+
 document.getElementById('goExpedisiBtn').onclick = () => {
   const sel = document.getElementById('expedisiSelect');
   const nama = sel.value;
   if (!nama) { alert('Pilih ekspedisi dulu dari daftar dropdown (muat data / data contoh dulu kalau dropdown masih kosong).'); return; }
-  openDetail(nama, sel.dataset.from, sel.dataset.to);
+  if (currentPage === 'monitoring') {
+    openMonitoring(nama, sel.dataset.from, sel.dataset.to);
+  } else {
+    openDetail(nama, sel.dataset.from, sel.dataset.to);
+  }
 };
 
 function fmtPct(v) { return v == null ? '-' : v.toFixed(1) + '%'; }
@@ -603,6 +632,146 @@ function setKpi(valId, targetId, pct, target) {
 
 let chartInstances = {};
 if (window.Chart && window.ChartDataLabels) Chart.register(ChartDataLabels);
+
+async function openMonitoring(nama, fromVal, toVal) {
+  const from = fmtDate(monthInputToDate(fromVal, false));
+  const to = fmtDate(monthInputToDate(toVal, true));
+
+  document.getElementById('monitoringStatus').style.display = 'block';
+  document.getElementById('monitoringStatus').textContent = 'Memuat data monitoring...';
+  document.getElementById('monitoringContent').style.display = 'none';
+
+  try {
+    const url = `${apiUrl}?action=monitoring&expedisi=${encodeURIComponent(nama)}&from=${from}&to=${to}`;
+    const res = await apiFetch(url);
+    if (res.error) throw new Error(res.error);
+    document.getElementById('monitoringStatus').style.display = 'none';
+    document.getElementById('monitoringContent').style.display = 'block';
+    renderMonitoringData(res, nama);
+  } catch (e) {
+    document.getElementById('monitoringStatus').style.display = 'block';
+    document.getElementById('monitoringStatus').textContent = '⚠ ' + e.message;
+  }
+}
+
+function fmtRupiah(v) {
+  return v == null ? '-' : 'Rp' + Math.round(v).toLocaleString('id-ID');
+}
+
+function renderMonitoringData(data, nama) {
+  // Kartu MTD/YTD
+  const cardsEl = document.getElementById('monMTDYTDCards');
+  function card(label, mtdVal, ytdVal, target, isMoney) {
+    const fmt = isMoney ? fmtRupiah : (v => v == null ? '-' : v.toFixed(1) + '%');
+    return `<div class="kpi-card"><div class="label">${escapeHtml(label)}</div>
+      <div class="value" style="font-size:18px;">${fmt(mtdVal)} <span style="font-size:12px;color:var(--grey);font-weight:400;">/ ${fmt(ytdVal)}</span></div>
+      <div class="target">MTD / YTD · Target ${isMoney ? fmtRupiah(target) : target + '%'}</div></div>`;
+  }
+  cardsEl.innerHTML =
+    card('DOT', data.mtd.dot.pct, data.ytd.dot.pct, data.target.dot, false) +
+    card('Pemenuhan Armada', data.mtd.reliability.pct, data.ytd.reliability.pct, data.target.reliability, false) +
+    card('Cost Ratio', data.mtd.cost.rate, data.ytd.cost.rate, data.target.cost.total, true);
+
+  // Chart + tabel DOT (mingguan)
+  drawMonitoringBarChart('chartMonDot', data.mingguan.dot.map(b => b.periode), data.mingguan.dot.map(b => b.dot.hit), data.mingguan.dot.map(b => b.dot.miss));
+  document.getElementById('monDotNote').textContent = `Target ${data.target.dot}%`;
+  fillMonitoringTable('tableMonDot', data.mingguan.dot.map(b => ({ periode: b.periode, ...b.dot })));
+
+  // Chart + tabel Pemenuhan Armada (mingguan)
+  drawMonitoringBarChart('chartMonPA', data.mingguan.reliability.map(b => b.periode), data.mingguan.reliability.map(b => b.reliability.hit), data.mingguan.reliability.map(b => b.reliability.miss));
+  document.getElementById('monPANote').textContent = `Target ${data.target.reliability}%`;
+  fillMonitoringTable('tableMonPA', data.mingguan.reliability.map(b => ({ periode: b.periode, ...b.reliability })));
+
+  // Chart + tabel Cost Ratio (mingguan, pakai total)
+  drawCostBarChart('chartMonCost', data.mingguan.cost.map(b => b.periode), data.mingguan.cost.map(b => b.total.rate));
+  document.getElementById('monCostNote').textContent = `Target ${fmtRupiah(data.target.cost.total)} (Total) · Darat ${fmtRupiah(data.target.cost.darat)} · Laut ${fmtRupiah(data.target.cost.laut)}`;
+  const costBody = document.querySelector('#tableMonCost tbody');
+  costBody.innerHTML = data.mingguan.cost.map(b => `
+    <tr><td>${escapeHtml(b.periode)}</td><td>${b.total.qtyM3.toFixed(2)}</td><td style="font-weight:700;">${fmtRupiah(b.total.rate)}</td></tr>
+  `).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--grey);">Tidak ada data</td></tr>';
+
+  // Detail miss DOT
+  fillMonitoringMissTable('tableMonMissDot', 'monMissDotEmpty', data.missDetailDot, ['bulan', 'tujuan', 'eta', 'ata', 'keterangan']);
+  // Detail komplain Pemenuhan Armada
+  fillMonitoringMissTable('tableMonMissPA', 'monMissPAEmpty', data.missDetailPA, ['bulan', 'tujuan', 'eta', 'noPol', 'keterangan']);
+
+  // Analisa
+  renderMonitoringAnalysis(data, nama);
+}
+
+function drawMonitoringBarChart(canvasId, labels, hitData, missData) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+  chartInstances[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Hit', data: hitData, backgroundColor: '#' + COLORS.green, borderRadius: 4 },
+        { label: 'Miss', data: missData, backgroundColor: '#' + COLORS.red, borderRadius: 4 }
+      ]
+    },
+    options: { responsive: true, plugins: { legend: { display: true, labels: { font: { size: 10 } } }, datalabels: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+function drawCostBarChart(canvasId, labels, rateData) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+  chartInstances[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Rate/M3', data: rateData, backgroundColor: '#' + COLORS.teal, borderRadius: 4 }] },
+    options: { responsive: true, plugins: { legend: { display: false }, datalabels: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+}
+
+function fillMonitoringTable(tableId, rows) {
+  const tbody = document.querySelector(`#${tableId} tbody`);
+  tbody.innerHTML = rows.map(r => `
+    <tr><td>${escapeHtml(r.periode)}</td><td>${r.hit}</td><td style="color:${r.miss > 0 ? '#' + COLORS.red : 'inherit'};">${r.miss}</td><td>${r.total}</td><td style="font-weight:700;">${r.pct != null ? r.pct.toFixed(1) + '%' : '-'}</td></tr>
+  `).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--grey);">Tidak ada data</td></tr>';
+}
+
+function fillMonitoringMissTable(tableId, emptyId, rows, fields) {
+  const tbody = document.querySelector(`#${tableId} tbody`);
+  const emptyEl = document.getElementById(emptyId);
+  if (rows && rows.length) {
+    tbody.innerHTML = rows.map(m => `<tr>${fields.map(f => `<td>${escapeHtml(m[f] || '')}</td>`).join('')}</tr>`).join('');
+    document.getElementById(tableId).style.display = 'table';
+    emptyEl.style.display = 'none';
+  } else {
+    document.getElementById(tableId).style.display = 'none';
+    emptyEl.style.display = 'block';
+  }
+}
+
+function renderMonitoringAnalysis(data, nama) {
+  const points = [];
+  function verdictLine(label, mtdPct, ytdPct, target, isMoney) {
+    if (mtdPct == null) return `${label}: data belum tersedia pada periode berjalan.`;
+    const fmt = isMoney ? fmtRupiah : (v => v.toFixed(1) + '%');
+    const ok = isMoney ? mtdPct <= target : mtdPct >= target;
+    const compare = isMoney ? (mtdPct <= target ? 'lebih hemat dari' : 'melebihi') : (ok ? 'sudah mencapai' : 'masih di bawah');
+    return `${label} MTD ${fmt(mtdPct)} <b style="color:#${ok ? COLORS.green : COLORS.red};">${compare} target ${fmt(target)}</b>${ytdPct != null ? `, dibanding YTD ${fmt(ytdPct)}` : ''}.`;
+  }
+  points.push(verdictLine('DOT', data.mtd.dot.pct, data.ytd.dot.pct, data.target.dot, false));
+  points.push(verdictLine('Pemenuhan Armada', data.mtd.reliability.pct, data.ytd.reliability.pct, data.target.reliability, false));
+  points.push(verdictLine('Cost Ratio', data.mtd.cost.rate, data.ytd.cost.rate, data.target.cost.total, true));
+
+  const missDotCount = (data.missDetailDot || []).length;
+  const missPACount = (data.missDetailPA || []).length;
+  if (missDotCount || missPACount) {
+    const parts = [];
+    if (missDotCount) parts.push(`${missDotCount} kejadian miss DOT`);
+    if (missPACount) parts.push(`${missPACount} komplain Pemenuhan Armada`);
+    points.push(`Tercatat ${parts.join(' dan ')} pada periode ini.`);
+  } else {
+    points.push('Tidak ada kejadian miss DOT maupun komplain Pemenuhan Armada pada periode ini.');
+  }
+
+  document.getElementById('monAnalysisContent').innerHTML =
+    '<ul style="margin:0;padding-left:18px;">' + points.map(p => `<li style="margin-bottom:8px;">${p}</li>`).join('') + '</ul>';
+}
 
 function drawTrendChart(canvasId, monthly, target) {
   const ctx = document.getElementById(canvasId).getContext('2d');

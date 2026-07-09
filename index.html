@@ -84,7 +84,7 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
 
 <header>
   <div class="eyebrow">PT. UNIFAM — Divisi Logistik & Transportasi</div>
-  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v24</span></h1>
+  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v25</span></h1>
   <div class="period-bar">
     <input type="month" id="fromMonth">
     <span style="color:rgba(255,255,255,.6);font-size:12px;">s/d</span>
@@ -99,6 +99,10 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
       <option value="">Pilih ekspedisi langsung...</option>
     </select>
     <button class="btn secondary" id="goExpedisiBtn">Buka</button>
+  </div>
+  <div class="period-bar" style="margin-top:8px;gap:0;">
+    <button class="btn" id="navEvaluasiBtn" style="border-radius:8px 0 0 8px;">Evaluasi</button>
+    <button class="btn secondary" id="navMonitoringBtn" style="border-radius:0 8px 8px 0;background:rgba(255,255,255,.12);">Monitoring</button>
   </div>
 </header>
 
@@ -198,6 +202,40 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
     <div class="export-bar">
       <button class="btn secondary" id="printBtn" style="background:var(--light);color:var(--navy);">🖨 Cetak</button>
       <button class="btn primary" id="pptxBtn">⬇ Download PPTX</button>
+    </div>
+  </div>
+
+  <div id="monitoringView" style="display:none;">
+    <div class="section-title">Monitoring — DOT, Pemenuhan Armada & Cost Ratio</div>
+    <div id="monitoringStatus" class="status">Pilih ekspedisi dari dropdown di atas, lalu tekan "Buka".</div>
+    <div id="monitoringContent" style="display:none;">
+
+      <div id="monMTDYTDCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px;"></div>
+
+      <div class="chart-card"><h3>DOT per Minggu</h3><div id="monDotNote" class="card-sub" style="margin-bottom:6px;"></div><canvas id="chartMonDot" height="160"></canvas></div>
+      <div class="chart-card" style="overflow-x:auto;"><table class="miss-table" id="tableMonDot"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table></div>
+      <div class="chart-card" style="overflow-x:auto;">
+        <h3>Detail Kejadian Miss — DOT</h3>
+        <table class="miss-table" id="tableMonMissDot"><thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>ATA/No Pol</th><th>Keterangan</th></tr></thead><tbody></tbody></table>
+        <div id="monMissDotEmpty" class="empty" style="display:none;padding:16px;">Tidak ada kejadian miss pada periode ini.</div>
+      </div>
+
+      <div class="chart-card"><h3>Pemenuhan Armada per Minggu</h3><div id="monPANote" class="card-sub" style="margin-bottom:6px;"></div><canvas id="chartMonPA" height="160"></canvas></div>
+      <div class="chart-card" style="overflow-x:auto;"><table class="miss-table" id="tableMonPA"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table></div>
+      <div class="chart-card" style="overflow-x:auto;">
+        <h3>Detail Komplain — Pemenuhan Armada</h3>
+        <table class="miss-table" id="tableMonMissPA"><thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>No Pol</th><th>Keterangan</th></tr></thead><tbody></tbody></table>
+        <div id="monMissPAEmpty" class="empty" style="display:none;padding:16px;">Tidak ada komplain pada periode ini.</div>
+      </div>
+
+      <div class="chart-card"><h3>Cost Ratio per Minggu</h3><div id="monCostNote" class="card-sub" style="margin-bottom:6px;"></div><canvas id="chartMonCost" height="160"></canvas></div>
+      <div class="chart-card" style="overflow-x:auto;"><table class="miss-table" id="tableMonCost"><thead><tr><th>Periode</th><th>Qty M3</th><th>Rate/M3</th></tr></thead><tbody></tbody></table></div>
+
+      <div class="section-title">Analisa</div>
+      <div class="chart-card" id="monAnalysisCard">
+        <div id="monAnalysisContent" style="font-size:13px;line-height:1.7;color:var(--ink);"></div>
+      </div>
+
     </div>
   </div>
 </main>
