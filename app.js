@@ -1,13 +1,14 @@
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v27 (2026-07-06) — FIX BUG: klik "Monitoring" langsung (tanpa
- *          pernah "Muat Data"/"Data Contoh" dulu di halaman Evaluasi) bikin
- *          input tanggal (fromMonth/toMonth) masih kosong, terkirim sbg
- *          tanggal kosong/rusak ke server — mungkin ini yg bikin Nano
- *          ngerasa "diminta pilih ekspedisi dulu" (padahal sebenarnya
- *          gagal krn tanggal kosong). Sekarang ada default otomatis: 3
- *          bulan terakhir s/d bulan berjalan, kalau tanggal belum diisi.
+ * VERSION: v28 (2026-07-06) — Sesuaikan field detail miss Pemenuhan Armada
+ *          (noPol → ata) mengikuti perubahan struktur backend v38 (sumber
+ *          Pemenuhan Armada sekarang dari data miss pa, bukan complain
+ *          brg kurang lagi). Perlu Code.gs v38+.
  * VERSION HISTORY:
+ *   v27 — FIX BUG: klik "Monitoring" langsung (tanpa pernah "Muat
+ *        Data"/"Data Contoh" dulu) bikin input tanggal masih kosong,
+ *        terkirim sbg tanggal kosong/rusak ke server. Sekarang ada default
+ *        otomatis: 3 bulan terakhir s/d bulan berjalan.
  *   v26 — FIX: halaman "Monitoring" sekarang otomatis tampilkan data
  *        GABUNGAN SEMUA EKSPEDISI begitu diklik (tanpa perlu pilih
  *        ekspedisi dulu) — sebelumnya keliru minta pilih 1 ekspedisi dulu.
@@ -722,7 +723,7 @@ function renderMonitoringData(data, nama) {
   // Detail miss DOT
   fillMonitoringMissTable('tableMonMissDot', 'monMissDotEmpty', data.missDetailDot, ['bulan', 'tujuan', 'eta', 'ata', 'keterangan']);
   // Detail komplain Pemenuhan Armada
-  fillMonitoringMissTable('tableMonMissPA', 'monMissPAEmpty', data.missDetailPA, ['bulan', 'tujuan', 'eta', 'noPol', 'keterangan']);
+  fillMonitoringMissTable('tableMonMissPA', 'monMissPAEmpty', data.missDetailPA, ['bulan', 'tujuan', 'eta', 'ata', 'keterangan']);
 
   // Analisa
   renderMonitoringAnalysis(data, nama);
