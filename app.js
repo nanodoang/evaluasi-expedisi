@@ -1,10 +1,11 @@
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v28 (2026-07-06) — Sesuaikan field detail miss Pemenuhan Armada
- *          (noPol → ata) mengikuti perubahan struktur backend v38 (sumber
- *          Pemenuhan Armada sekarang dari data miss pa, bukan complain
- *          brg kurang lagi). Perlu Code.gs v38+.
+ * VERSION: v29 (2026-07-06) — Label kolom "ATA/No Pol" diubah jadi "ATA"
+ *          (isinya sekarang dari kolom "Arrival Date" di backend, bukan
+ *          Nopol lagi). Perlu Code.gs v46+.
  * VERSION HISTORY:
+ *   v28 — Sesuaikan field detail miss Pemenuhan Armada (noPol → ata)
+ *        mengikuti perubahan struktur backend v38.
  *   v27 — FIX BUG: klik "Monitoring" langsung (tanpa pernah "Muat
  *        Data"/"Data Contoh" dulu) bikin input tanggal masih kosong,
  *        terkirim sbg tanggal kosong/rusak ke server. Sekarang ada default
