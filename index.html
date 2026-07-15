@@ -1,245 +1,754 @@
 <!DOCTYPE html>
-<!-- Evaluasi Kinerja Ekspedisi — Frontend VERSION: v3 (2026-07-06)
-     v3: tambah tombol "Tes Koneksi" di panel pengaturan utk diagnostik JSONP/fetch
-     v2: tambah dropdown pilih ekspedisi langsung + plugin data label chart
-     v1: rilis awal (dashboard + generate PPTX) -->
 <html lang="id">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Evaluasi Kinerja Ekspedisi — PT. UNIFAM</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+<title>Cari Surat Jalan</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
-:root{
-  --navy:#21295C; --deep:#065A82; --teal:#1C7293; --mint:#5FC9A8;
-  --green:#1E8F5F; --red:#C0392B; --amber:#B8860B;
-  --light:#F4F8FA; --line:#E2E8F0; --grey:#5B6B79; --ink:#1A2233;
-  --gA:#1E8F5F; --gB:#1C7293; --gC:#B8860B; --gD:#C0392B;
-}
-*{box-sizing:border-box;}
-body{margin:0;font-family:Calibri,Arial,sans-serif;background:var(--light);color:var(--ink);}
-header{background:var(--navy);color:#fff;padding:18px 16px 22px;position:sticky;top:0;z-index:10;}
-header .eyebrow{font-size:11px;letter-spacing:2px;color:var(--mint);font-weight:700;text-transform:uppercase;}
-header h1{margin:4px 0 12px;font-size:22px;font-weight:700;}
-.period-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-.period-bar input{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;
-  padding:8px 10px;border-radius:8px;font-size:14px;}
-.period-bar input::-webkit-calendar-picker-indicator{filter:invert(1);}
-.btn{background:var(--mint);color:var(--navy);border:none;padding:9px 16px;border-radius:8px;
-  font-weight:700;font-size:14px;cursor:pointer;}
-.btn.secondary{background:rgba(255,255,255,.15);color:#fff;}
-.btn:active{transform:scale(.97);}
-main{padding:14px 12px 60px;max-width:920px;margin:0 auto;}
-.status{padding:14px;text-align:center;color:var(--grey);font-size:14px;}
-.card{background:#fff;border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06);
-  cursor:pointer;display:flex;align-items:center;gap:12px;}
-.card:active{background:#f0f4f6;}
-.grade-badge{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-weight:700;font-size:18px;color:#fff;flex-shrink:0;}
-.card-body{flex:1;min-width:0;}
-.card-title{font-weight:700;font-size:15px;color:var(--navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.card-sub{font-size:12px;color:var(--grey);margin-top:2px;}
-.card-score{font-size:20px;font-weight:700;color:var(--teal);}
-.chip{display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;background:var(--light);
-  color:var(--grey);font-weight:600;margin-top:3px;}
-.section-title{font-size:13px;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:1.5px;
-  margin:22px 0 10px 2px;}
-
-/* Detail view */
-#detailView{display:none;}
-.back-btn{background:none;border:none;color:var(--mint);font-size:14px;font-weight:700;cursor:pointer;padding:0 0 8px;}
-.detail-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
-.detail-header h2{margin:2px 0;font-size:24px;color:var(--navy);}
-.detail-grade{width:60px;height:60px;border-radius:50%;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;color:#fff;font-weight:700;flex-shrink:0;}
-.detail-grade span{font-size:24px;line-height:1;}
-.detail-grade small{font-size:9px;letter-spacing:1px;}
-.kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
-.rank-badge{flex:1;min-width:150px;background:var(--light);border-radius:10px;padding:12px;}
-.rank-badge .rank-label{font-size:11px;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
-.rank-badge .rank-value{font-size:22px;font-weight:700;color:var(--navy);margin:4px 0 2px;}
-.rank-badge .rank-value b{font-size:14px;color:var(--grey);font-weight:600;}
-.rank-badge .rank-note{font-size:11px;color:var(--grey);}
-table.miss-table td, table.miss-table th{white-space:nowrap;}
-.kpi-card{background:#fff;border-radius:12px;padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
-.kpi-card .label{font-size:11px;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:.5px;}
-.kpi-card .value{font-size:26px;font-weight:700;margin:4px 0 2px;}
-.kpi-card .target{font-size:11px;color:var(--grey);}
-.chart-card{background:#fff;border-radius:12px;padding:12px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
-.chart-card h3{margin:0 0 8px;font-size:13px;color:var(--navy);}
-table.miss-table{width:100%;border-collapse:collapse;font-size:12px;}
-table.miss-table th{background:var(--deep);color:#fff;text-align:left;padding:8px 6px;font-size:11px;}
-table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
-.export-bar{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:12px;
-  display:flex;gap:8px;margin:0 -12px -60px;}
-.export-bar .btn{flex:1;background:var(--navy);color:#fff;}
-.export-bar .btn.primary{background:var(--mint);color:var(--navy);}
-.empty{text-align:center;padding:40px 20px;color:var(--grey);}
-.setup-box{background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;font-size:13px;line-height:1.6;color:var(--grey);}
-.setup-box code{background:var(--light);padding:2px 6px;border-radius:4px;font-size:12px;color:var(--navy);}
+  :root{
+    --ink:#16130f; --paper:#f6f2ea; --card:#fffdf8;
+    --line:#e2dacb; --muted:#8b8072;
+    --accent:#1f6f8b; --accent-bg:#e7f1f4;
+    --gold:#b8841a; --gold-bg:#fbf2dd;
+    --ok:#2f7d4f; --ok-bg:#e7f3eb;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.45;padding-bottom:80px}
+  header{padding:16px;border-bottom:2px solid var(--ink);background:var(--card)}
+  header h1{margin:0;font-size:19px;letter-spacing:-.3px}
+  header p{margin:3px 0 0;color:var(--muted);font-size:12.5px}
+  .wrap{padding:14px;max-width:760px;margin:0 auto}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin:0 0 4px}
+  select,input{width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);font-family:inherit;font-size:15px}
+  .field{margin-bottom:11px}
+  .btn{width:100%;padding:13px;border:none;border-radius:10px;background:var(--ink);color:var(--paper);font-weight:700;font-size:15px;cursor:pointer}
+  .btn-sec{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .status{font-size:12.5px;color:var(--muted);text-align:center;padding:6px;word-break:break-word}
+  .status.err{color:#c0392b} .status.ok{color:var(--ok)}
+  .res-head{display:flex;justify-content:space-between;align-items:center;margin:4px 0 10px;gap:8px}
+  .res-head h2{margin:0;font-size:15px}
+  .res-head .cnt{font-size:12px;color:var(--muted)}
+  .total{background:var(--accent-bg);border:1px solid #cfe2e8;border-radius:10px;padding:11px 13px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+  .total b{color:var(--accent);font-size:19px}
+  .total span{font-size:12.5px;color:var(--muted)}
+  .chk{width:17px;height:17px;flex:none;accent-color:var(--ok)}
+  .rate{color:var(--gold);font-weight:700}
+  .rate.none{color:var(--muted);font-weight:400}
+  .tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;margin-bottom:12px}
+  table.restbl{width:100%;border-collapse:collapse;background:var(--card);table-layout:fixed;font-size:11px;min-width:980px}
+  table.restbl th,table.restbl td{padding:5px 5px;text-align:left;border-bottom:1px solid var(--line);word-break:break-word;overflow-wrap:anywhere;vertical-align:top}
+  table.restbl th{background:#efe9dd;font-size:9px;text-transform:uppercase;letter-spacing:.2px;color:var(--muted)}
+  table.restbl tr.rrow{cursor:pointer}
+  table.restbl tr.sel td{background:var(--ok-bg)}
+  table.restbl td.sj{font-weight:700}
+  table.restbl td.sj .so{font-weight:400;color:var(--muted)}
+  table.restbl td.m3,table.restbl th.m3{text-align:right}
+  table.restbl td.rate,table.restbl th.rate{text-align:right}
+  table.restbl td.editcell{padding:3px}
+  table.restbl td.editcell input{width:100%;padding:5px;border:1px solid var(--line);border-radius:6px;font-size:11px;font-family:inherit}
+  table.restbl td.muted2{color:var(--line);text-align:center}
+  .cbcell{text-align:center}
+  col.c-chk{width:34px} col.c-tgl{width:58px} col.c-sj{width:110px} col.c-dist{width:120px}
+  col.c-exp{width:48px} col.c-truck{width:76px} col.c-cont{width:82px} col.c-m3{width:42px} col.c-rate{width:84px}
+  col.c-hm{width:88px} col.c-ll{width:80px} col.c-ket{width:90px}
+  .empty{text-align:center;color:var(--muted);padding:34px 12px}
+  .config{font-size:12px;color:var(--muted)}
+  .config summary{cursor:pointer;font-weight:600;color:var(--accent)}
+  .config input{font-size:13px;margin-top:6px}
+  .toolbar{display:flex;gap:8px;margin-bottom:10px}
+  .toolbar .btn{padding:10px;font-size:13px}
+  .selbar{position:fixed;left:0;right:0;bottom:0;background:var(--ink);color:#fff;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;transform:translateY(100%);transition:.2s;z-index:50}
+  .selbar.show{transform:translateY(0)}
+  .selbar .info{font-size:13px}
+  .selbar .info b{display:block;font-size:16px}
+  .selbar button{padding:11px 16px;border:none;border-radius:9px;background:var(--gold);color:#fff;font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap}
+  datalist{display:none}
+  .navtab{display:flex;gap:6px;padding:10px 14px 0;max-width:760px;margin:0 auto}
+  .ntab{flex:1;padding:10px;border:1px solid var(--line);border-bottom:none;border-radius:10px 10px 0 0;background:var(--paper);color:var(--muted);font-weight:600;font-size:14px;cursor:pointer;font-family:inherit}
+  .ntab.active{background:var(--card);color:var(--accent);border-color:var(--line)}
+  .hgrp{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+  .hgrp-h{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+  .hgrp-h b{font-size:14px;color:var(--accent)}
+  .hgrp-h .tot{font-size:15px;font-weight:800;color:var(--gold);white-space:nowrap}
+  .hgrp-s{font-size:11.5px;color:var(--muted);margin-bottom:8px}
+  .hrow{font-size:11.5px;border-top:1px solid var(--line);padding:6px 0;display:flex;justify-content:space-between;gap:8px}
+  .hrow .l{flex:1;min-width:0}
+  .hrow .l b{display:block}
+  .hrow .l span{color:var(--muted)}
+  .hrow .v{text-align:right;white-space:nowrap}
+  .hgrp-f{display:flex;gap:6px;margin-top:9px}
+  .hgrp-f button{flex:1;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+  #printArea{display:none}
+  @page{ size:A4 landscape; margin:12mm; }
+  @media print{
+    body *{visibility:hidden}
+    #printArea,#printArea *{visibility:visible}
+    #printArea{display:block;position:absolute;left:0;top:0;width:100%}
+    .no-print{display:none!important}
+  }
+  #printArea{background:#fff;color:#000;font-size:12px}
+  .p-head{text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:10px}
+  .p-head h2{margin:0;font-size:18px;letter-spacing:.5px} .p-head p{margin:2px 0;font-size:12px}
+  .p-meta{display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:10px}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th,td{border:1px solid #888;padding:5px 7px;text-align:left;vertical-align:top}
+  th{background:#e9e9e9;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px}
+  td.r,th.r{text-align:right}
+  td.c,th.c{text-align:center}
+  tfoot td{font-weight:800;background:#f3f3f3}
+  .p-sign{margin-top:40px;display:flex;justify-content:space-around;font-size:11.5px}
+  .p-sign div{text-align:center;width:40%}
+  .p-sign .role{margin-bottom:56px}
+  .p-sign .nm{letter-spacing:1px}
+  td.pairs{padding:0}
+  .pair{display:flex;border-bottom:1px solid #ddd}
+  .pair:last-child{border-bottom:none}
+  .pair span{padding:3px 6px}
+  .pair .a{flex:2;border-right:1px solid #ddd}
+  .pair .b{flex:2;border-right:1px solid #ddd}
+  .pair .c{flex:1;text-align:right}
+  .pair.phead{font-weight:700;background:#f0f0f0;font-size:9.5px}
+  .pair.psub{font-weight:700;background:#fafafa;font-size:9.5px}
+  td small{color:#666;font-size:10px}
 </style>
 </head>
 <body>
-
 <header>
-  <div class="eyebrow">PT. UNIFAM — Divisi Logistik & Transportasi</div>
-  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v29</span></h1>
-  <div class="period-bar">
-    <input type="month" id="fromMonth">
-    <span style="color:rgba(255,255,255,.6);font-size:12px;">s/d</span>
-    <input type="month" id="toMonth">
-    <button class="btn" id="loadBtn">Muat Data</button>
-    <button class="btn secondary" id="demoBtn">Data Contoh</button>
-    <button class="btn secondary" id="settingsBtn">⚙︎</button>
-  </div>
-  <div class="period-bar" style="margin-top:8px;">
-    <select id="expedisiSelect" style="flex:1;min-width:160px;background:rgba(255,255,255,.12);
-      border:1px solid rgba(255,255,255,.25);color:#fff;padding:8px 10px;border-radius:8px;font-size:14px;">
-      <option value="">Pilih ekspedisi langsung...</option>
-    </select>
-    <button class="btn secondary" id="goExpedisiBtn">Buka</button>
-  </div>
-  <div class="period-bar" style="margin-top:8px;gap:0;">
-    <button class="btn" id="navEvaluasiBtn" style="border-radius:8px 0 0 8px;">Evaluasi</button>
-    <button class="btn secondary" id="navMonitoringBtn" style="border-radius:0 8px 8px 0;background:rgba(255,255,255,.12);">Monitoring</button>
-  </div>
+  <h1>Cari Surat Jalan</h1>
+  <p>Filter → centang → simpan → cetak dengan total harga</p>
 </header>
 
-<main>
-  <div id="settingsPanel" style="display:none;" class="setup-box">
-    <strong style="color:var(--navy);">Pengaturan Koneksi</strong><br>
-    URL Web App (Google Apps Script) — deploy <code>Code.gs</code> lalu tempel URL-nya di sini:
-    <div style="margin:8px 0;">
-      <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/.../exec"
-        style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-size:12px;">
+<div class="navtab no-print">
+  <button class="ntab active" data-tab="cari">🔍 Cari</button>
+  <button class="ntab" data-tab="history">📁 History</button>
+</div>
+
+<div class="wrap no-print" id="pageCari">
+  <div class="panel">
+    <div class="field">
+      <label>Nama Ekspedisi</label>
+      <select id="exp"><option value="">— Semua —</option></select>
     </div>
-    <button class="btn" id="saveApiUrl" style="background:var(--navy);color:#fff;">Simpan</button>
-    <button class="btn secondary" id="testApiBtn" style="background:var(--light);color:var(--navy);">Tes Koneksi</button>
-    <div id="testApiResult" style="margin-top:8px;font-size:12px;white-space:pre-wrap;word-break:break-all;"></div>
+    <div class="field">
+      <label>Rentang Tanggal Kirim</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="date" id="tglDari" style="flex:1">
+        <span style="color:var(--muted);font-size:13px">s/d</span>
+        <input type="date" id="tglSampai" style="flex:1">
+      </div>
+      <small style="color:var(--muted);font-size:11px">Kosongkan keduanya = semua tanggal</small>
+    </div>
+    <div class="field">
+      <label>Nama Distributor (opsional)</label>
+      <input id="dist" list="distList" placeholder="Kosongkan utk tampil semua…" autocomplete="off">
+      <datalist id="distList"></datalist>
+    </div>
+    <div class="field">
+      <label>No Invoice Ekspedisi (opsional, utk cetak)</label>
+      <input id="noInv" placeholder="mis. INV/KKL/2026/001" autocomplete="off">
+    </div>
+    <button class="btn" id="cari">Cari</button>
+    <div class="status" id="status">Memuat data…</div>
   </div>
 
-  <div id="listView">
-    <div class="section-title">Perbandingan Semua Ekspedisi</div>
-    <div id="listStatus" class="status">Atur periode lalu tekan "Muat Data".</div>
-    <div id="listContainer"></div>
-  </div>
+  <details class="panel config">
+    <summary>Pengaturan sumber data</summary>
+    <div style="margin-top:10px">
+      <label>ID Google Sheet</label>
+      <input id="sid" value="1RFH2UALr_IM_epOBotEt7UDeudRH71D_Kc7-vE_dzgw">
+      <label style="margin-top:8px">GID sheet (pisahkan koma untuk gabung)</label>
+      <input id="gid" value="1537494998">
+      <button class="btn btn-sec" id="reload" style="margin-top:10px">Muat Ulang Data</button>
+      <label style="margin-top:12px">URL Apps Script (utk simpan ke Sheet)</label>
+      <input id="scriptUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+      <label style="margin-top:12px">GID tab Rekap (utk History)</label>
+      <input id="gidRekap" placeholder="mis. 123456789" autocomplete="off">
+    </div>
+  </details>
 
-  <div id="detailView">
-    <button class="back-btn" id="backBtn">‹ Kembali ke daftar</button>
-    <div class="detail-header">
+  <div id="results"></div>
+</div>
+
+<!-- HALAMAN HISTORY -->
+<div class="wrap no-print" id="pageHistory" style="display:none">
+  <div class="panel">
+    <div class="field">
+      <label>Cari No Invoice / Distributor / Truck</label>
+      <input id="hCari" placeholder="ketik untuk menyaring…" autocomplete="off">
+    </div>
+    <button class="btn btn-sec" id="hReload">Muat Ulang History</button>
+    <div class="status" id="hStatus">Belum dimuat.</div>
+  </div>
+  <div id="hList"></div>
+</div>
+
+<div class="selbar no-print" id="selbar">
+  <div class="info">Dipilih <b id="selCount">0</b></div>
+  <div style="display:flex;gap:8px">
+    <button id="clearSel" style="background:#555">Batal</button>
+    <button id="printSel">Simpan &amp; Cetak</button>
+  </div>
+</div>
+
+<div id="printArea"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+let ROWS=[], VIEW=[];
+const SEL=new Map();
+const MANUAL={}; // {contKey:{harga,ket}}
+
+function fmtRp(n){return n>0?'Rp '+Math.round(n).toLocaleString('id-ID'):null;}
+function toNum(v){
+  if(v==null||v==='')return 0;
+  if(typeof v==='number')return v;
+  let s=String(v).replace(/[^0-9,.-]/g,'');
+  if(s==='')return 0;
+  const hasDot=s.includes('.'), hasComma=s.includes(',');
+  if(hasDot&&hasComma){
+    // format ID: titik=ribuan, koma=desimal → 1.234.567,89
+    s=s.replace(/\./g,'').replace(',','.');
+  }else if(hasComma){
+    // hanya koma: desimal ID (71,80) ATAU ribuan gaya EN
+    if(/,\d{1,2}$/.test(s)) s=s.replace(',', '.');   // desimal
+    else s=s.replace(/,/g,'');                        // ribuan
+  }else if(hasDot){
+    // hanya titik: bisa ribuan ID (8.551.802) atau desimal EN (8551.80)
+    const parts=s.split('.');
+    if(parts.length>2) s=s.replace(/\./g,'');         // >1 titik = ribuan ID
+    else if(parts[1] && parts[1].length===3) s=s.replace(/\./g,''); // 1 titik & 3 digit = ribuan (8.551)
+    // selain itu biarkan sbg desimal
+  }
+  const n=parseFloat(s);return isNaN(n)?0:n;
+}
+function setStatus(m,c){$('status').textContent=m;$('status').className='status'+(c?' '+c:'');}
+
+async function fetchTimeout(url,ms){
+  const ctrl=new AbortController();const id=setTimeout(()=>ctrl.abort(),ms);
+  try{return await fetch(url,{signal:ctrl.signal});}finally{clearTimeout(id);}
+}
+
+async function fetchOneGid(sid,gid){
+  const csv=`https://docs.google.com/spreadsheets/d/${sid}/export?format=csv&gid=${gid}`;
+  const tries=[
+    csv,
+    `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq?tqx=out:csv&gid=${gid}`,
+    'https://api.allorigins.win/raw?url='+encodeURIComponent(csv),
+  ];
+  for(const url of tries){
+    try{
+      const res=await fetchTimeout(url,12000);
+      if(!res.ok)throw 0;
+      const text=await res.text();
+      if(!text||text.trim().startsWith('<'))throw 0;
+      const p=Papa.parse(text,{skipEmptyLines:true});
+      if(p.data&&p.data.length>1)return p.data;
+    }catch(e){}
+  }
+  return null;
+}
+
+async function loadData(){
+  const sid=$('sid').value.trim();
+  const gids=$('gid').value.split(',').map(s=>s.trim()).filter(Boolean);
+  setStatus('Memuat data dari '+gids.length+' sheet…');
+  let all=[]; let okCount=0; let rawSample=null;
+  for(const gid of gids){
+    setStatus('Memuat sheet gid='+gid+'…');
+    const data=await fetchOneGid(sid,gid);
+    if(data){ if(!rawSample)rawSample=data; all=all.concat(parseSheet(data)); okCount++; }
+  }
+  if(!okCount){
+    setStatus('Gagal memuat. Buka lewat GitHub Pages (https), bukan file lokal.','err');
+    return;
+  }
+  ROWS=all.map((r,i)=>({...r,id:'r'+i}));
+  buildFilters();
+  if(!ROWS.length){
+    setStatus('Terhubung tapi 0 baris terbaca — lihat contoh data di bawah.','err');
+    showRaw(rawSample);
+  } else setStatus(ROWS.length+' baris dari '+okCount+' sheet dimuat. Siap dicari.','ok');
+}
+
+function showRaw(data){
+  if(!data){return;}
+  let html='<div class="panel"><b>Diagnosa — 8 baris pertama sheet:</b><div style="overflow-x:auto;margin-top:8px"><table style="font-size:11px;border-collapse:collapse">';
+  for(let i=0;i<Math.min(8,data.length);i++){
+    html+='<tr>';
+    html+='<td style="border:1px solid #ccc;padding:3px;background:#eee;font-weight:700">'+i+'</td>';
+    for(let j=0;j<Math.min(10,data[i].length);j++){
+      html+='<td style="border:1px solid #ccc;padding:3px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis">'+(data[i][j]||'')+'</td>';
+    }
+    html+='</tr>';
+  }
+  html+='</table></div><p style="font-size:12px;color:#8b8072;margin-top:8px">Kirim screenshot tabel ini supaya pemetaan kolom bisa disesuaikan.</p></div>';
+  $('results').innerHTML=html;
+}
+
+function findCol(headers, keywords){
+  for(let i=0;i<headers.length;i++){
+    const h=String(headers[i]||'').toLowerCase().trim();
+    for(const kw of keywords){ if(h.includes(kw)) return i; }
+  }
+  return -1;
+}
+
+function findLastCol(headers, keywords){
+  for(let i=headers.length-1;i>=0;i--){
+    const h=String(headers[i]||'').toLowerCase().trim();
+    for(const kw of keywords){ if(h.includes(kw)) return i; }
+  }
+  return -1;
+}
+
+function parseSheet(data){
+  // cari baris header
+  let hIdx=-1;
+  for(let i=0;i<Math.min(data.length,20);i++){
+    const j=data[i].join('|').toLowerCase();
+    if(j.includes('packing slip')||j.includes('surat jalan')||j.includes('no do')||(j.includes('rate')&&j.includes('distributor'))||(j.includes('expedition')&&j.includes('container'))){hIdx=i;break;}
+  }
+  if(hIdx<0) return [];
+  const H=data[hIdx];
+  // petakan kolom berdasarkan nama header (ID + EN)
+  const cExp = findCol(H,['expedition','ekspedisi','expedisi','ekpedisi']);
+  const cNopol=findCol(H,['truck','nopol','no pol','polisi']);
+  const cTgl = findCol(H,['ship date','tgl kirim','tanggal kirim','tgl','tanggal']);
+  const cDist= findCol(H,['distributor','distri','customer','pelanggan']);
+  const cCont= findCol(H,['container','kontainer','cont']);
+  // Rate = kolom K (indeks 10) sesuai struktur sheet; fallback cari header 'rate' paling kanan
+  let cRate = 10;
+  if(!H[10] || !String(H[10]).toLowerCase().includes('rate')){
+    cRate = findLastCol(H,['rate','harga','tarif','biaya','nominal']);
+  }
+  const cSo  = findCol(H,['sales order','no so','nomor so']);
+  const cSj  = findCol(H,['packing slip','surat jalan','no sj','delivery order','no do']);
+  const cM3  = findCol(H,['m3','m³','kubikasi','kubik','cbm','volume']);
+
+  const g=(c,idx)=> (idx>=0 && c[idx]!=null) ? String(c[idx]).trim() : '';
+  const raw=[];
+  let lastExp='';
+  for(let i=hIdx+1;i<data.length;i++){
+    const c=data[i];if(!c)continue;
+    let exp=g(c,cExp);
+    const nopol=g(c,cNopol);
+    const tgl=g(c,cTgl);
+    const dist=g(c,cDist);
+    const cont=g(c,cCont);
+    const rate=toNum(g(c,cRate));
+    const so=g(c,cSo);
+    const sj=g(c,cSj);
+    const m3=toNum(g(c,cM3));
+    if(!sj)continue;
+    if(exp){lastExp=exp;}else{exp=lastExp;}
+    raw.push({exp,nopol,tgl,dist,cont,rate,so,sj,m3});
+  }
+  // tahap 2: kumpulkan rate per kontainer (nopol+exp+tgl+cont), lalu tempel ke semua baris
+  const rateMap={};
+  raw.forEach(r=>{
+    const k=r.nopol+'|'+r.exp+'|'+r.tgl+'|'+r.cont;
+    if(r.rate>0 && !rateMap[k]) rateMap[k]=r.rate;
+  });
+  raw.forEach(r=>{
+    const k=r.nopol+'|'+r.exp+'|'+r.tgl+'|'+r.cont;
+    r.contKey=k;
+    if(!(r.rate>0) && rateMap[k]) r.rate=rateMap[k];
+  });
+  return raw;
+}
+
+function buildFilters(){
+  const exps=[...new Set(ROWS.map(r=>r.exp).filter(Boolean))].sort();
+  const dists=[...new Set(ROWS.map(r=>r.dist).filter(Boolean))].sort();
+  $('exp').innerHTML='<option value="">— Semua —</option>'+exps.map(e=>`<option>${e}</option>`).join('');
+  $('distList').innerHTML=dists.map(d=>`<option value="${d.replace(/"/g,'&quot;')}">`).join('');
+}
+
+// parse "dd/mm/yy" atau "dd/mm/yyyy" -> Date (00:00)
+function parseTgl(s){
+  if(!s)return null;
+  const m=String(s).trim().match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if(!m)return null;
+  let[,d,mo,y]=m; d=+d;mo=+mo;y=+y;
+  if(y<100)y+=2000;
+  const dt=new Date(y,mo-1,d);
+  return isNaN(dt)?null:dt;
+}
+
+function cari(){
+  const e=$('exp').value;
+  const d=$('dist').value.trim().toLowerCase();
+  const dari=$('tglDari').value?new Date($('tglDari').value):null;
+  const sampai=$('tglSampai').value?new Date($('tglSampai').value):null;
+  if(sampai)sampai.setHours(23,59,59);
+  VIEW=ROWS.filter(r=>{
+    if(e&&r.exp!==e)return false;
+    if(d&&!r.dist.toLowerCase().includes(d))return false;
+    if(dari||sampai){
+      const rt=parseTgl(r.tgl);
+      if(!rt)return false;
+      if(dari&&rt<dari)return false;
+      if(sampai&&rt>sampai)return false;
+    }
+    return true;
+  });
+  render();
+}
+
+function render(){
+  const box=$('results');
+  if(!VIEW.length){box.innerHTML='<div class="panel empty">Tidak ada surat jalan yang cocok.</div>';return;}
+  const seen=new Set();let total=0;
+  VIEW.forEach(r=>{if(r.rate>0&&!seen.has(r.contKey)){seen.add(r.contKey);total+=r.rate;}});
+  let html=`<div class="res-head"><h2>Hasil Pencarian</h2><span class="cnt">${VIEW.length} surat jalan</span></div>`;
+  html+=`<div class="toolbar">
+    <button class="btn btn-sec" id="selAll">Centang Semua</button>
+    <button class="btn btn-sec" id="unAll">Hapus Centang</button>
+  </div>`;
+  if(total>0)html+=`<div class="total"><span>Total harga hasil (per kontainer)</span><b>${fmtRp(total)}</b></div>`;
+  const seenCont=new Set();
+  const rows=VIEW.map(r=>{
+    const on=SEL.has(r.id);
+    const firstOfCont=!seenCont.has(r.contKey); if(firstOfCont)seenCont.add(r.contKey);
+    const mv=MANUAL[r.contKey]||{harga:'',lain:'',ket:''};
+    const hVal = mv.harga ? 'Rp '+toNum(mv.harga).toLocaleString('id-ID') : '';
+    const lVal = mv.lain ? 'Rp '+toNum(mv.lain).toLocaleString('id-ID') : '';
+    const kEnc = encodeURIComponent(r.contKey);
+    const inputCells = firstOfCont
+      ? `<td class="editcell"><input class="in-harga" data-k="${kEnc}" inputmode="numeric" value="${hVal}" placeholder="—"></td>
+         <td class="editcell"><input class="in-lain" data-k="${kEnc}" inputmode="numeric" value="${lVal}" placeholder="—"></td>
+         <td class="editcell"><input class="in-ket" data-k="${kEnc}" value="${(mv.ket||'').replace(/"/g,'&quot;')}" placeholder="—"></td>`
+      : `<td class="editcell muted2">〃</td><td class="editcell muted2">〃</td><td class="editcell muted2">〃</td>`;
+    return `<tr class="rrow ${on?'sel':''}" data-id="${r.id}">
+      <td class="cbcell"><input type="checkbox" class="chk" ${on?'checked':''}></td>
+      <td>${r.tgl||'—'}</td>
+      <td class="sj">${r.sj}<br><span class="so">${r.so||'—'}</span></td>
+      <td>${r.dist||'—'}</td>
+      <td>${r.exp||'—'}</td>
+      <td>${r.nopol||'—'}</td>
+      <td>${r.cont||'—'}</td>
+      <td class="m3">${r.m3>0?r.m3.toLocaleString('id-ID'):'—'}</td>
+      <td class="rate ${r.rate>0?'':'none'}">${r.rate>0?fmtRp(r.rate):'(ikut)'}</td>
+      ${inputCells}
+    </tr>`;
+  }).join('');
+  html+=`<div class="tblwrap"><table class="restbl">
+    <colgroup><col class="c-chk"><col class="c-tgl"><col class="c-sj"><col class="c-dist"><col class="c-exp"><col class="c-truck"><col class="c-cont"><col class="c-m3"><col class="c-rate"><col class="c-hm"><col class="c-ll"><col class="c-ket"></colgroup>
+    <thead><tr>
+      <th class="cbcell"><input type="checkbox" id="chkAllHead"></th>
+      <th>Tgl</th><th>No Surat Jalan / SO</th><th>Distributor</th><th>Eksp</th><th>No Truck</th><th>No Kontainer</th><th class="m3">m³</th><th class="rate">Harga</th><th>Revisi</th><th>Lain-lain</th><th>Ket</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+  box.innerHTML=html;
+
+  box.querySelectorAll('.rrow').forEach(row=>{
+    const id=row.dataset.id;
+    const cb=row.querySelector('.chk');
+    const toggle=()=>{
+      if(cb.checked){SEL.set(id,VIEW.find(r=>r.id===id));row.classList.add('sel');}
+      else{SEL.delete(id);row.classList.remove('sel');}
+      updateSelbar();
+    };
+    cb.addEventListener('change',toggle);
+    row.addEventListener('click',e=>{
+      const t=e.target;
+      if(t!==cb && !t.classList.contains('in-harga') && !t.classList.contains('in-lain') && !t.classList.contains('in-ket')){cb.checked=!cb.checked;toggle();}
+    });
+  });
+  // helper: pasang input uang (format Rp saat blur)
+  const pasangUang=(sel,field)=>{
+    box.querySelectorAll(sel).forEach(inp=>{
+      const k=decodeURIComponent(inp.dataset.k);
+      inp.addEventListener('input',()=>{
+        MANUAL[k]=MANUAL[k]||{};
+        const angka=toNum(inp.value);
+        MANUAL[k][field] = angka>0 ? String(angka) : '';
+      });
+      inp.addEventListener('focus',()=>{
+        const v=(MANUAL[k]||{})[field];
+        inp.value = v ? String(v) : '';
+      });
+      inp.addEventListener('blur',()=>{
+        const v=(MANUAL[k]||{})[field];
+        inp.value = v && +v>0 ? 'Rp '+(+v).toLocaleString('id-ID') : '';
+      });
+    });
+  };
+  pasangUang('.in-harga','harga');
+  pasangUang('.in-lain','lain');
+  box.querySelectorAll('.in-ket').forEach(inp=>{
+    const k=decodeURIComponent(inp.dataset.k);
+    inp.addEventListener('input',()=>{ MANUAL[k]=MANUAL[k]||{}; MANUAL[k].ket=inp.value; });
+  });
+  const head=$('chkAllHead');
+  if(head){head.checked=VIEW.every(r=>SEL.has(r.id))&&VIEW.length>0;
+    head.onclick=()=>{ if(head.checked)VIEW.forEach(r=>SEL.set(r.id,r)); else VIEW.forEach(r=>SEL.delete(r.id)); render(); };
+  }
+  $('selAll').onclick=()=>{VIEW.forEach(r=>SEL.set(r.id,r));render();};
+  $('unAll').onclick=()=>{VIEW.forEach(r=>SEL.delete(r.id));render();};
+  updateSelbar();
+}
+
+function updateSelbar(){
+  $('selCount').textContent=SEL.size;
+  $('selbar').classList.toggle('show',SEL.size>0);
+}
+
+// hasilkan struktur data rekap dari yang dipilih
+function buildRekap(){
+  const rows=[...SEL.values()];
+  const groups={};
+  rows.forEach(r=>{
+    const k=r.contKey||(r.nopol+'|'+r.exp+'|'+r.tgl+'|'+r.cont);
+    if(!groups[k]) groups[k]={contKey:k,nopol:r.nopol,exp:r.exp,tgl:r.tgl,cont:r.cont,dist:r.dist,rate:r.rate||0,items:[],seenSj:new Set()};
+    const gg=groups[k];
+    if(r.rate>0) gg.rate=r.rate;
+    if(r.sj && !gg.seenSj.has(r.sj)){ gg.seenSj.add(r.sj); gg.items.push({sj:r.sj,so:r.so,m3:r.m3||0}); }
+    if(!gg.dist && r.dist) gg.dist=r.dist;
+  });
+  const list=Object.values(groups).filter(g=>g.rate>0).map(g=>{
+    delete g.seenSj;
+    const mv=MANUAL[g.contKey]||{};
+    const rev=toNum(mv.harga);      // revisi
+    const lain=toNum(mv.lain);      // lain-lain
+    g.revisi = rev>0?rev:null;
+    g.lainLain = lain>0?lain:null;
+    g.keterangan = (mv.ket||'').trim();
+    // aturan: ada revisi -> pakai revisi (abaikan harga awal); + lain-lain
+    const dasar = rev>0 ? rev : g.rate;
+    g.totalBaris = dasar + (lain>0?lain:0);
+    return g;
+  });
+  const total=list.reduce((s,g)=>s+g.totalBaris,0);
+  const totalM3=list.reduce((s,g)=>s+g.items.reduce((a,it)=>a+(it.m3||0),0),0);
+  const skipped=Object.values(groups).length-list.length;
+  const noInv=$('noInv').value.trim();
+  const dari=$('tglDari').value, sampai=$('tglSampai').value;
+  const fmtD=s=>{const d=new Date(s);return d.toLocaleDateString('id-ID',{day:'2-digit',month:'2-digit',year:'numeric'});};
+  let periode='';
+  if(dari&&sampai)periode=fmtD(dari)+' s/d '+fmtD(sampai);
+  else if(dari)periode='mulai '+fmtD(dari);
+  else if(sampai)periode='s/d '+fmtD(sampai);
+  return {list,total,totalM3,skipped,noInv,periode,dibuat:new Date().toISOString()};
+}
+
+const fmtM3=n=>n>0?n.toLocaleString('id-ID',{maximumFractionDigits:2}):'—';
+
+function buildPrint(rekap){
+  const {list,totalM3,skipped,noInv,periode}=rekap;
+  const today=new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+  let totalFinal=0;
+  const body=list.map((g,i)=>{
+    const subM3=g.items.reduce((a,it)=>a+(it.m3||0),0);
+    const spa=g.items.map(it=>it.sj).filter(Boolean).join(', ');
+    const so=[...new Set(g.items.map(it=>it.so).filter(Boolean))].join(', ');
+    const hFinal=g.totalBaris;
+    totalFinal+=hFinal;
+    return `<tr>
+      <td class="c">${i+1}</td>
+      <td>${g.dist||'—'}</td>
+      <td>${g.exp||'—'}</td>
+      <td>${g.nopol||'—'}<br><small>${g.cont||''}</small></td>
+      <td>${g.tgl||'—'}</td>
+      <td>${spa||'—'}</td>
+      <td>${so||'—'}</td>
+      <td class="r">${fmtM3(subM3)}</td>
+      <td class="r">${fmtRp(g.rate)}</td>
+      <td class="r">${g.revisi?fmtRp(g.revisi):''}</td>
+      <td class="r">${g.lainLain?fmtRp(g.lainLain):''}</td>
+      <td class="r"><b>${fmtRp(g.totalBaris)}</b></td>
+      <td>${g.keterangan||''}</td>
+    </tr>`;
+  }).join('');
+
+  $('printArea').innerHTML=`
+    <div class="p-head">
+      <p>PT. UNIFAM</p>
+    </div>
+    <div class="p-meta">
       <div>
-        <div class="chip" id="detailKategori">-</div>
-        <h2 id="detailNama">-</h2>
-        <div class="card-sub" id="detailPeriode">-</div>
+        ${noInv?'<div><b>No Invoice Ekspedisi:</b> '+noInv+'</div>':''}
+        ${periode?'<div><b>Periode kirim:</b> '+periode+'</div>':''}
+        <div>Tanggal cetak: ${today}</div>
       </div>
-      <div class="detail-grade" id="detailGradeBadge"><span>-</span><small>GRADE</small></div>
+      <div style="text-align:right">Jumlah truck: ${list.length}</div>
     </div>
+    <table>
+      <thead><tr>
+        <th class="c" style="width:24px">No</th><th style="width:130px">Distributor</th><th style="width:44px">Eksp</th><th style="width:96px">No Truck / Kontainer</th><th style="width:58px">Tgl</th><th>No Surat Jalan</th><th>No SO</th><th class="r" style="width:42px">m³</th><th class="r" style="width:82px">Harga</th><th class="r" style="width:82px">Revisi</th><th class="r" style="width:74px">Lain-lain</th><th class="r" style="width:88px">Total</th><th style="width:88px">Ket</th>
+      </tr></thead>
+      <tbody>${body}</tbody>
+      <tfoot><tr><td colspan="7" class="r">TOTAL</td><td class="r">${fmtM3(totalM3)}</td><td colspan="3"></td><td class="r">${fmtRp(totalFinal)||'Rp 0'}</td><td></td></tr></tfoot>
+    </table>
+    ${skipped>0?`<p style="font-size:11px;color:#666;margin-top:6px">*) ${skipped} truck terpilih tidak dicetak karena belum ada harga.</p>`:''}
+    <div class="p-sign">
+      <div><div class="role">Diperiksa oleh,</div><div class="nm">(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</div></div>
+      <div><div class="role">Mengetahui,</div><div class="nm">(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</div></div>
+    </div>`;
+}
 
-    <div class="kpi-grid">
-      <div class="kpi-card"><div class="label">Mutu</div><div class="value" id="kMutu">-</div><div class="target" id="tMutu">Target 100%</div></div>
-      <div class="kpi-card"><div class="label">Tiba di FAM</div><div class="value" id="kFam">-</div><div class="target" id="tFam">Target 98%</div></div>
-      <div class="kpi-card"><div class="label">Tiba di Distributor</div><div class="value" id="kDist">-</div><div class="target" id="tDist">Target 98%</div></div>
-      <div class="kpi-card"><div class="label">Reliability</div><div class="value" id="kRel">-</div><div class="target" id="tRel">Target 100%</div></div>
-    </div>
+// ===== SIMPAN KE GOOGLE SHEET (via Apps Script) =====
+function kirimKeSheet(rekap){
+  const url=($('scriptUrl').value||'').trim();
+  if(!url) return false;
+  try{ localStorage.setItem('script_url_unifam', url); }catch(e){}
+  fetch(url,{
+    method:'POST',
+    mode:'no-cors',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify(rekap)
+  }).catch(()=>{});
+  return true;
+}
 
-    <div class="section-title">Peringkat Dibanding Ekspedisi Lain</div>
-    <div class="chart-card" id="rankingCard">
-      <div id="rankingContent" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
-    </div>
+// ===== NAVIGASI TAB =====
+document.querySelectorAll('.ntab').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('.ntab').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    const t=b.dataset.tab;
+    $('pageCari').style.display = t==='cari'?'':'none';
+    $('pageHistory').style.display = t==='history'?'':'none';
+    $('selbar').style.display = t==='cari'?'':'none';
+    if(t==='history' && !HIST.length) muatHistory();
+  };
+});
 
-    <div class="chart-card"><h3>Tren Bulanan — Tiba di FAM</h3><canvas id="chartFam" height="140"></canvas>
-      <div class="data-table-wrap" style="overflow-x:auto;margin-top:10px;"><table class="miss-table" id="tableFam"><thead><tr><th>Bulan</th><th>Hit</th><th>Miss</th><th>Plan</th><th>%</th></tr></thead><tbody></tbody></table></div>
-    </div>
-    <div class="chart-card" style="overflow-x:auto;">
-      <h3>Detail Kejadian Miss — Tiba di FAM</h3>
-      <table class="miss-table" id="missTableFam">
-        <thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>ATA</th><th>Keterangan</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div id="missEmptyFam" class="empty" style="display:none;padding:16px;">Tidak ada kejadian miss Tiba di FAM pada periode ini.</div>
-    </div>
+// ===== HISTORY (baca tab Rekap di Sheet) =====
+let HIST=[];
+async function muatHistory(){
+  const sid=$('sid').value.trim();
+  const gid=($('gidRekap').value||'').trim();
+  if(!gid){ $('hStatus').textContent='Isi dulu "GID tab Rekap" di Pengaturan (halaman Cari).'; $('hStatus').className='status err'; return; }
+  try{ localStorage.setItem('gid_rekap_unifam', gid); }catch(e){}
+  $('hStatus').textContent='Memuat history…'; $('hStatus').className='status';
+  const data=await fetchOneGid(sid,gid);
+  if(!data){ $('hStatus').textContent='Gagal memuat tab Rekap. Cek GID.'; $('hStatus').className='status err'; return; }
+  // baris 0 = header
+  const H=data[0].map(h=>String(h||'').toLowerCase().trim());
+  const idx=n=>H.findIndex(h=>h.includes(n));
+  const cW=idx('waktu'), cInv=idx('invoice'), cPer=idx('periode'), cDist=idx('distributor'),
+        cExp=idx('ekspedisi'), cTruck=idx('truck'), cCont=idx('kontainer'), cTgl=idx('tgl kirim'),
+        cSj=idx('surat jalan'), cSo=idx('no so'), cM3=idx('m3'),
+        cHarga=idx('harga'), cRev=idx('revisi'), cLain=idx('lain'), cTot=idx('total'), cKet=idx('keterangan');
+  const g=(r,i)=> (i>=0 && r[i]!=null) ? String(r[i]).trim() : '';
+  const rows=[];
+  for(let i=1;i<data.length;i++){
+    const r=data[i]; if(!r||!g(r,cSj))continue;
+    rows.push({
+      waktu:g(r,cW), inv:g(r,cInv), periode:g(r,cPer), dist:g(r,cDist), exp:g(r,cExp),
+      nopol:g(r,cTruck), cont:g(r,cCont), tgl:g(r,cTgl), sj:g(r,cSj), so:g(r,cSo),
+      m3:toNum(g(r,cM3)), harga:toNum(g(r,cHarga)), revisi:toNum(g(r,cRev)),
+      lain:toNum(g(r,cLain)), total:toNum(g(r,cTot)), ket:g(r,cKet)
+    });
+  }
+  HIST=rows;
+  $('hStatus').textContent=rows.length+' baris history dimuat.'; $('hStatus').className='status ok';
+  renderHistory();
+}
 
-    <div class="chart-card"><h3>Tren Bulanan — Tiba di Distributor</h3><canvas id="chartDist" height="140"></canvas>
-      <div class="data-table-wrap" style="overflow-x:auto;margin-top:10px;"><table class="miss-table" id="tableDist"><thead><tr><th>Bulan</th><th>Hit</th><th>Miss</th><th>Plan</th><th>%</th></tr></thead><tbody></tbody></table></div>
-    </div>
-    <div class="chart-card" id="missBreakdownCard">
-      <h3>Ringkasan Penyebab Miss — Tiba di Distributor</h3>
-      <div id="missBreakdownContent" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;"></div>
-    </div>
-    <div class="chart-card" style="overflow-x:auto;">
-      <h3>Detail Kejadian Miss — Tiba di Distributor</h3>
-      <table class="miss-table" id="missTableDist">
-        <thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>ATA</th><th>Keterangan</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div id="missEmptyDist" class="empty" style="display:none;padding:16px;">Tidak ada kejadian miss Tiba di Distributor pada periode ini.</div>
-    </div>
-
-    <div class="chart-card"><h3>Tren Bulanan — Reliability</h3><canvas id="chartRel" height="140"></canvas>
-      <div class="data-table-wrap" style="overflow-x:auto;margin-top:10px;"><table class="miss-table" id="tableRel"><thead><tr><th>Bulan</th><th>Hit</th><th>Miss</th><th>Plan</th><th>%</th></tr></thead><tbody></tbody></table></div>
-    </div>
-    <div class="chart-card" style="overflow-x:auto;">
-      <h3>Detail Kejadian Miss — Reliability</h3>
-      <table class="miss-table" id="missTableRel">
-        <thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>ATA</th><th>Keterangan</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div id="missEmptyRel" class="empty" style="display:none;padding:16px;">Tidak ada komplain Reliability pada periode ini.</div>
-    </div>
-
-    <div class="section-title">Analisa Pencapaian</div>
-    <div class="chart-card" id="analysisCard">
-      <div id="analysisContent" style="font-size:13px;line-height:1.7;color:var(--ink);"></div>
-    </div>
-
-    <div class="section-title">Data Mentah (Cek Sumber Angka)</div>
-    <div class="chart-card" id="rawDebugCard" style="font-size:12px;">
-      <button class="btn" id="loadRawDebugBtn" style="background:var(--light);color:var(--navy);width:auto;padding:8px 16px;">🔍 Tampilkan Data Mentah</button>
-      <div id="rawDebugContent" style="margin-top:10px;"></div>
-    </div>
-
-    <div class="export-bar">
-      <button class="btn secondary" id="printBtn" style="background:var(--light);color:var(--navy);">🖨 Cetak</button>
-      <button class="btn primary" id="pptxBtn">⬇ Download PPTX</button>
-    </div>
-  </div>
-
-  <div id="monitoringView" style="display:none;">
-    <div class="section-title">Monitoring — DOT, Pemenuhan Armada & Cost Ratio</div>
-    <div id="monitoringStatus" class="status">Pilih ekspedisi dari dropdown di atas, lalu tekan "Buka".</div>
-    <div id="monitoringContent" style="display:none;">
-
-      <div id="monMTDYTDCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px;"></div>
-
-      <div class="chart-card"><h3>DOT per Minggu</h3><div id="monDotNote" class="card-sub" style="margin-bottom:6px;"></div><canvas id="chartMonDot" height="160"></canvas></div>
-      <div class="chart-card" style="overflow-x:auto;"><table class="miss-table" id="tableMonDot"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table></div>
-      <div class="chart-card" style="overflow-x:auto;">
-        <h3>Detail Kejadian Miss — DOT</h3>
-        <table class="miss-table" id="tableMonMissDot"><thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>ATA</th><th>Keterangan</th></tr></thead><tbody></tbody></table>
-        <div id="monMissDotEmpty" class="empty" style="display:none;padding:16px;">Tidak ada kejadian miss pada periode ini.</div>
+function renderHistory(){
+  const q=($('hCari').value||'').trim().toLowerCase();
+  let rows=HIST;
+  if(q) rows=rows.filter(r=>(r.inv+' '+r.dist+' '+r.nopol+' '+r.cont+' '+r.sj).toLowerCase().includes(q));
+  if(!rows.length){ $('hList').innerHTML='<div class="panel empty">Tidak ada history yang cocok.</div>'; return; }
+  // kelompokkan per (waktu simpan + no invoice) = satu kali cetak
+  const grup={};
+  rows.forEach(r=>{
+    const k=r.waktu+'||'+r.inv;
+    if(!grup[k]) grup[k]={waktu:r.waktu,inv:r.inv,periode:r.periode,items:[],total:0};
+    grup[k].items.push(r);
+    grup[k].total+=r.total||0;
+  });
+  const list=Object.values(grup).sort((a,b)=> (a.waktu<b.waktu?1:-1)); // terbaru dulu
+  $('hList').innerHTML=list.map((gp,gi)=>`
+    <div class="hgrp">
+      <div class="hgrp-h">
+        <div>
+          <b>${gp.inv||'(tanpa no invoice)'}</b>
+          <div class="hgrp-s">${gp.periode?('Periode: '+gp.periode+' • '):''}${gp.items.length} truck<br>Disimpan: ${gp.waktu}</div>
+        </div>
+        <div class="tot">${fmtRp(gp.total)||'Rp 0'}</div>
       </div>
-
-      <div class="chart-card"><h3>Pemenuhan Armada per Minggu</h3><div id="monPANote" class="card-sub" style="margin-bottom:6px;"></div><canvas id="chartMonPA" height="160"></canvas></div>
-      <div class="chart-card" style="overflow-x:auto;"><table class="miss-table" id="tableMonPA"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table></div>
-      <div class="chart-card" style="overflow-x:auto;">
-        <h3>Detail Komplain — Pemenuhan Armada</h3>
-        <table class="miss-table" id="tableMonMissPA"><thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>No Pol</th><th>Keterangan</th></tr></thead><tbody></tbody></table>
-        <div id="monMissPAEmpty" class="empty" style="display:none;padding:16px;">Tidak ada komplain pada periode ini.</div>
+      ${gp.items.map(r=>`
+        <div class="hrow">
+          <div class="l">
+            <b>${r.dist||'—'}</b>
+            <span>${r.exp||''} • ${r.nopol||''} • ${r.cont||''} • ${r.tgl||''}</span>
+            <span>SJ: ${r.sj||'—'}</span>
+            ${r.ket?`<span>Ket: ${r.ket}</span>`:''}
+          </div>
+          <div class="v">
+            ${r.revisi>0?`<div style="text-decoration:line-through;color:var(--muted)">${fmtRp(r.harga)}</div><div>${fmtRp(r.revisi)}</div>`:`<div>${fmtRp(r.harga)}</div>`}
+            ${r.lain>0?`<div style="color:var(--muted)">+ ${fmtRp(r.lain)}</div>`:''}
+            <div style="font-weight:700">${fmtRp(r.total)}</div>
+          </div>
+        </div>`).join('')}
+      <div class="hgrp-f">
+        <button data-g="${gi}" class="h-print">🖨 Cetak Ulang</button>
       </div>
+    </div>`).join('');
+  $('hList').querySelectorAll('.h-print').forEach(b=>{
+    b.onclick=()=>cetakUlang(list[+b.dataset.g]);
+  });
+}
 
-      <div class="chart-card"><h3>Cost Ratio per Minggu</h3><div id="monCostNote" class="card-sub" style="margin-bottom:6px;"></div><canvas id="chartMonCost" height="160"></canvas></div>
-      <div class="chart-card" style="overflow-x:auto;"><table class="miss-table" id="tableMonCost"><thead><tr><th>Periode</th><th>Qty M3</th><th>Rate/M3</th></tr></thead><tbody></tbody></table></div>
+// susun ulang struktur rekap dari history lalu cetak
+function cetakUlang(gp){
+  const groups={};
+  gp.items.forEach(r=>{
+    const k=r.nopol+'|'+r.exp+'|'+r.tgl+'|'+r.cont;
+    if(!groups[k]) groups[k]={contKey:k,nopol:r.nopol,exp:r.exp,tgl:r.tgl,cont:r.cont,dist:r.dist,
+      rate:r.harga,revisi:r.revisi>0?r.revisi:null,lainLain:r.lain>0?r.lain:null,
+      keterangan:r.ket,totalBaris:r.total,items:[]};
+    // SPA & SO bisa berisi banyak (dipisah koma) -> pecah lagi
+    const sjs=(r.sj||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const sos=(r.so||'').split(',').map(s=>s.trim()).filter(Boolean);
+    sjs.forEach((sj,i)=>groups[k].items.push({sj,so:sos[i]||sos[0]||'',m3:i===0?r.m3:0}));
+  });
+  const list=Object.values(groups);
+  const rekap={list,total:gp.total,totalM3:list.reduce((s,g)=>s+g.items.reduce((a,it)=>a+(it.m3||0),0),0),
+    skipped:0,noInv:gp.inv,periode:gp.periode,dibuat:gp.waktu};
+  buildPrint(rekap);
+  setTimeout(()=>{
+    const j=document.title; document.title=' ';
+    window.print();
+    document.title=j;
+  },150);
+}
 
-      <div class="section-title">Analisa</div>
-      <div class="chart-card" id="monAnalysisCard">
-        <div id="monAnalysisContent" style="font-size:13px;line-height:1.7;color:var(--ink);"></div>
-      </div>
+$('hReload').onclick=muatHistory;
+$('hCari').addEventListener('input',()=>{ if(HIST.length)renderHistory(); });
+try{ const gr=localStorage.getItem('gid_rekap_unifam'); if(gr)$('gidRekap').value=gr; }catch(e){}
 
-    </div>
-  </div>
-</main>
-
-<script src="app.js"></script>
+$('cari').onclick=cari;
+$('dist').addEventListener('keydown',e=>{if(e.key==='Enter')cari();});
+$('reload').onclick=loadData;
+$('clearSel').onclick=()=>{SEL.clear();render();updateSelbar();};
+$('printSel').onclick=()=>{
+  if(!SEL.size)return;
+  const rekap=buildRekap();
+  if(!rekap.list.length){alert('Tidak ada kontainer dengan harga untuk disimpan/dicetak.');return;}
+  const terkirim=kirimKeSheet(rekap);
+  if(!terkirim){
+    if(!confirm('URL Apps Script belum diisi, jadi rekap TIDAK tersimpan ke Google Sheet.\nLanjut cetak saja?')) return;
+  }
+  buildPrint(rekap);
+  setTimeout(()=>{
+    const judulAsli=document.title;
+    document.title=' ';
+    window.print();
+    document.title=judulAsli;
+    if(terkirim){ setTimeout(()=>{ SEL.clear(); render(); updateSelbar(); },300); }
+  },150);
+};
+// pulihkan URL script tersimpan
+try{ const u=localStorage.getItem('script_url_unifam'); if(u)$('scriptUrl').value=u; }catch(e){}
+loadData();
+</script>
 </body>
 </html>
