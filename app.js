@@ -1,9 +1,17 @@
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v29 (2026-07-06) — Label kolom "ATA/No Pol" diubah jadi "ATA"
- *          (isinya sekarang dari kolom "Arrival Date" di backend, bukan
- *          Nopol lagi). Perlu Code.gs v46+.
+ * VERSION: v32 (2026-07-06) — FIX: Ranking Pemenuhan Armada sekarang
+ *          dibandingkan pakai TOTAL HIT (angka mentah), BUKAN persentase
+ *          lagi — badge & chart-nya disesuaikan (skala otomatis, angka
+ *          tanpa %). Perlu Code.gs v48+ (field "famHit" baru).
  * VERSION HISTORY:
+ *   v31 — Chart ranking DOT & Pemenuhan Armada tampilkan angka persentase
+ *        langsung di atas tiap batang (dulu cuma lewat tooltip).
+ *   v30 — TAMBAH FITUR: chart batang ranking DOT & Pemenuhan Armada di
+ *        halaman detail Evaluasi — tampilkan 10 besar (nama DIRAHASIAKAN)
+ *        + posisi ekspedisi yang lagi dibuka kalau di luar 10 besar.
+ *   v29 — Label kolom "ATA/No Pol" diubah jadi "ATA" (isinya dari kolom
+ *        "Arrival Date" di backend, bukan Nopol lagi).
  *   v28 — Sesuaikan field detail miss Pemenuhan Armada (noPol → ata)
  *        mengikuti perubahan struktur backend v38.
  *   v27 — FIX BUG: klik "Monitoring" langsung (tanpa pernah "Muat
@@ -605,6 +613,38 @@ function computeRank(list, ekspedisiName, field, kategori) {
   return { rank: idx + 1, total: sorted.length, value: sorted[idx][field] };
 }
 
+// Data utk chart batang ranking: peringkat 1-10 (nama DIRAHASIAKAN, cuma
+// "#1".."#10"), PLUS ekspedisi yang lagi dibuka (nama ditampilkan) kalau
+// peringkatnya di luar 10 besar — supaya tetap kelihatan posisinya tanpa
+// membocorkan nama ekspedisi lain.
+function computeRankingChartData(list, ekspedisiName, field, kategori) {
+  const sameCategory = kategori
+    ? list.filter(item => normalizeKategori(item.kategori) === normalizeKategori(kategori))
+    : list;
+  const valid = sameCategory.filter(item => item[field] != null);
+  if (!valid.length) return null;
+  const sorted = [...valid].sort((a, b) => b[field] - a[field]);
+  const idx = sorted.findIndex(item => item.ekspedisi === ekspedisiName);
+  if (idx === -1) return null;
+
+  const topN = sorted.slice(0, 10);
+  const labels = topN.map((item, i) => i === idx ? `${ekspedisiName} (#${i + 1})` : `#${i + 1}`);
+  const values = topN.map(item => item[field]);
+  const highlightIdx = idx < 10 ? idx : -1;
+
+  if (idx >= 10) {
+    // Ekspedisi terpilih di luar 10 besar -> tambahkan sbg batang terakhir
+    labels.push(`${ekspedisiName} (#${idx + 1})`);
+    values.push(sorted[idx][field]);
+  }
+
+  return {
+    labels, values,
+    highlightIdx: idx < 10 ? idx : labels.length - 1,
+    total: sorted.length
+  };
+}
+
 // Samakan variasi penulisan kategori (Truck/Darat, Kontener/Laut, dll) jadi
 // satu bentuk baku, supaya "Truck" dan "Darat" dianggap kategori yang sama.
 function normalizeKategori(kategori) {
@@ -621,30 +661,73 @@ function kategoriLabel(kategori) {
   return kategori || '-';
 }
 
+function drawRankingChart(canvasId, chartData, isPercent) {
+  if (isPercent === undefined) isPercent = true;
+  const canvasEl = document.getElementById(canvasId);
+  if (!canvasEl) return;
+  if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+  if (!chartData) {
+    canvasEl.style.display = 'none';
+    return;
+  }
+  canvasEl.style.display = 'block';
+  const colors = chartData.labels.map((_, i) => i === chartData.highlightIdx ? '#' + COLORS.teal : '#c3c2b7');
+  chartInstances[canvasId] = new Chart(canvasEl.getContext('2d'), {
+    type: 'bar',
+    data: { labels: chartData.labels, datasets: [{ data: chartData.values, backgroundColor: colors, borderRadius: 4, maxBarThickness: 32 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 20 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => isPercent ? (c.parsed.y.toFixed(2) + '%') : Math.round(c.parsed.y) } },
+        datalabels: {
+          anchor: 'end', align: 'top', offset: 2,
+          color: (ctx) => ctx.dataIndex === chartData.highlightIdx ? '#' + COLORS.teal : '#' + COLORS.grey,
+          font: { size: 10, weight: 'bold' },
+          formatter: v => isPercent ? (v.toFixed(1) + '%') : Math.round(v)
+        }
+      },
+      scales: {
+        y: { beginAtZero: !isPercent, ticks: isPercent ? { callback: v => v + '%' } : {} },
+        x: { ticks: { autoSkip: false, maxRotation: 45, font: { size: 10 } } }
+      }
+    }
+  });
+}
+
 function renderRanking(ekspedisiName, kategori) {
   const container = document.getElementById('rankingContent');
   if (!currentList || !currentList.length) {
     container.innerHTML = '<div style="color:var(--grey);font-size:13px;">Muat daftar semua ekspedisi dulu (lewat halaman utama) supaya ranking bisa dihitung.</div>';
+    drawRankingChart('chartRankDot', null);
+    drawRankingChart('chartRankPA', null);
     return;
   }
   const rankDist = computeRank(currentList, ekspedisiName, 'distributor', kategori);
-  const rankFam = computeRank(currentList, ekspedisiName, 'fam', kategori);
+  const rankFam = computeRank(currentList, ekspedisiName, 'famHit', kategori);
   const catLabel = kategoriLabel(kategori);
 
-  function badge(label, rankInfo) {
+  function badge(label, rankInfo, isPercent) {
     if (!rankInfo) return `<div class="rank-badge"><div class="rank-label">${label}</div><div class="rank-note">Data tidak tersedia</div></div>`;
     const isTop = rankInfo.rank <= Math.ceil(rankInfo.total * 0.25);
     const color = isTop ? COLORS.green : (rankInfo.rank > rankInfo.total * 0.75 ? COLORS.red : COLORS.teal);
+    const valText = isPercent ? rankInfo.value.toFixed(2) + '%' : Math.round(rankInfo.value) + ' Hit';
     return `<div class="rank-badge">
       <div class="rank-label">${label}</div>
       <div class="rank-value" style="color:#${color};">#${rankInfo.rank} <b>dari ${rankInfo.total} ekspedisi</b></div>
-      <div class="rank-note">Skor: ${rankInfo.value.toFixed(2)}% · Kategori: ${escapeHtml(catLabel)}</div>
+      <div class="rank-note">${isPercent ? 'Skor' : 'Total'}: ${valText} · Kategori: ${escapeHtml(catLabel)}</div>
     </div>`;
   }
 
   container.innerHTML =
-    badge('Tiba di Distributor (DOT)', rankDist) +
-    badge('Pemenuhan Armada (Tiba di FAM)', rankFam);
+    badge('Tiba di Distributor (DOT)', rankDist, true) +
+    badge('Pemenuhan Armada (Total Hit Tiba di FAM)', rankFam, false);
+
+  // Chart batang: 10 besar (nama dirahasiakan) + posisi ekspedisi ini kalau
+  // di luar 10 besar.
+  drawRankingChart('chartRankDot', computeRankingChartData(currentList, ekspedisiName, 'distributor', kategori));
+  drawRankingChart('chartRankPA', computeRankingChartData(currentList, ekspedisiName, 'famHit', kategori), false);
 }
 
 function periodeLabel(p) {

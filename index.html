@@ -84,7 +84,7 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
 
 <header>
   <div class="eyebrow">PT. UNIFAM — Divisi Logistik & Transportasi</div>
-  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v29</span></h1>
+  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v32</span></h1>
   <div class="period-bar">
     <input type="month" id="fromMonth">
     <span style="color:rgba(255,255,255,.6);font-size:12px;">s/d</span>
@@ -146,6 +146,14 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
     <div class="section-title">Peringkat Dibanding Ekspedisi Lain</div>
     <div class="chart-card" id="rankingCard">
       <div id="rankingContent" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+      <div style="margin-top:16px;">
+        <div style="font-size:12px;color:var(--grey);margin-bottom:4px;">Ranking DOT (10 besar, nama dirahasiakan)</div>
+        <canvas id="chartRankDot" height="160"></canvas>
+      </div>
+      <div style="margin-top:16px;">
+        <div style="font-size:12px;color:var(--grey);margin-bottom:4px;">Ranking Pemenuhan Armada — Total Hit (10 besar, nama dirahasiakan)</div>
+        <canvas id="chartRankPA" height="160"></canvas>
+      </div>
     </div>
 
     <div class="chart-card"><h3>Tren Bulanan — Tiba di FAM</h3><canvas id="chartFam" height="140"></canvas>
@@ -241,6 +249,5 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
 </main>
 
 <script src="app.js"></script>
-<a href="https://nanodoang.github.io/Logistic-Transportation/" style="position:fixed;bottom:18px;left:18px;display:flex;align-items:center;gap:8px;background:#1a1f1a;color:#f0efe6;text-decoration:none;font-family:'Segoe UI',system-ui,sans-serif;font-size:13px;font-weight:600;padding:10px 16px;border-radius:8px;box-shadow:0 3px 10px rgba(0,0,0,0.25);z-index:9999;" onmouseover="this.style.background='#b5502e'" onmouseout="this.style.background='#1a1f1a'">← Portal Utama</a>
 </body>
 </html>
