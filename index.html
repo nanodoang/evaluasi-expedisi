@@ -101,6 +101,12 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
 .mon-chart-row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;}
 .mon-chart-col{flex:1 1 220px;min-width:180px;max-width:280px;}
 .mon-table-col{flex:2 1 260px;min-width:220px;overflow-x:auto;}
+.mon-period-row{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.mon-period-select{padding:6px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--navy);font-size:13px;font-weight:600;}
+.mon-stat-row{display:flex;gap:10px;flex-wrap:wrap;}
+.mon-stat-box{flex:1;min-width:90px;background:var(--light);border-radius:10px;padding:10px 12px;text-align:center;}
+.mon-stat-box .mon-stat-label{font-size:10px;color:var(--grey);font-weight:700;text-transform:uppercase;}
+.mon-stat-box .mon-stat-value{font-size:20px;font-weight:700;color:var(--navy);margin-top:2px;}
 </style>
 
 </head>
@@ -108,7 +114,7 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
 
 <header>
   <div class="eyebrow">PT. UNIFAM — Divisi Logistik & Transportasi</div>
-  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v34</span></h1>
+  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v35</span></h1>
   <div class="period-bar" id="evaluasiPeriodBar">
     <input type="month" id="fromMonth">
     <span style="color:rgba(255,255,255,.6);font-size:12px;">s/d</span>
@@ -265,10 +271,18 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
           <button class="mon-gran-btn" data-gran="bulanan">Bulan</button>
           <button class="mon-gran-btn" data-gran="tahunan">Tahun</button>
         </div>
+        <div class="mon-period-row">
+          <select class="mon-period-select" id="periodSelectDot"></select>
+        </div>
         <div class="mon-chart-row">
-          <div class="mon-chart-col"><canvas id="chartMonDot" height="180"></canvas></div>
+          <div class="mon-chart-col"><canvas id="chartMonDot" height="140"></canvas></div>
           <div class="mon-table-col">
-            <table class="miss-table" id="tableMonDot"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table>
+            <div class="mon-stat-row">
+              <div class="mon-stat-box"><div class="mon-stat-label">Hit</div><div class="mon-stat-value" id="statDotHit" style="color:var(--green);">-</div></div>
+              <div class="mon-stat-box"><div class="mon-stat-label">Miss</div><div class="mon-stat-value" id="statDotMiss" style="color:var(--red);">-</div></div>
+              <div class="mon-stat-box"><div class="mon-stat-label">Total</div><div class="mon-stat-value" id="statDotTotal">-</div></div>
+              <div class="mon-stat-box"><div class="mon-stat-label">%</div><div class="mon-stat-value" id="statDotPct">-</div></div>
+            </div>
           </div>
         </div>
         <div class="mon-subblock">
@@ -290,10 +304,18 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
           <button class="mon-gran-btn" data-gran="bulanan">Bulan</button>
           <button class="mon-gran-btn" data-gran="tahunan">Tahun</button>
         </div>
+        <div class="mon-period-row">
+          <select class="mon-period-select" id="periodSelectPa"></select>
+        </div>
         <div class="mon-chart-row">
-          <div class="mon-chart-col"><canvas id="chartMonPA" height="180"></canvas></div>
+          <div class="mon-chart-col"><canvas id="chartMonPA" height="140"></canvas></div>
           <div class="mon-table-col">
-            <table class="miss-table" id="tableMonPA"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table>
+            <div class="mon-stat-row">
+              <div class="mon-stat-box"><div class="mon-stat-label">Hit</div><div class="mon-stat-value" id="statPaHit" style="color:var(--green);">-</div></div>
+              <div class="mon-stat-box"><div class="mon-stat-label">Miss</div><div class="mon-stat-value" id="statPaMiss" style="color:var(--red);">-</div></div>
+              <div class="mon-stat-box"><div class="mon-stat-label">Total</div><div class="mon-stat-value" id="statPaTotal">-</div></div>
+              <div class="mon-stat-box"><div class="mon-stat-label">%</div><div class="mon-stat-value" id="statPaPct">-</div></div>
+            </div>
           </div>
         </div>
         <div class="mon-subblock">
@@ -315,10 +337,18 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
           <button class="mon-gran-btn" data-gran="bulanan">Bulan</button>
           <button class="mon-gran-btn" data-gran="tahunan">Tahun</button>
         </div>
+        <div class="mon-period-row">
+          <select class="mon-period-select" id="periodSelectCost"></select>
+        </div>
         <div class="mon-chart-row">
-          <div class="mon-chart-col"><canvas id="chartMonCost" height="180"></canvas></div>
+          <div class="mon-chart-col"><canvas id="chartMonCost" height="140"></canvas></div>
           <div class="mon-table-col">
-          <table class="miss-table" id="tableMonCost"><thead><tr><th>Periode</th><th>Qty M3</th><th>Rate/M3</th></tr></thead><tbody></tbody></table>
+            <div class="mon-stat-row">
+              <div class="mon-stat-box"><div class="mon-stat-label">Qty M3</div><div class="mon-stat-value" id="statCostQty" style="font-size:16px;">-</div></div>
+              <div class="mon-stat-box"><div class="mon-stat-label">Rate Darat</div><div class="mon-stat-value" id="statCostDarat" style="font-size:14px;">-</div></div>
+              <div class="mon-stat-box"><div class="mon-stat-label">Rate Laut</div><div class="mon-stat-value" id="statCostLaut" style="font-size:14px;">-</div></div>
+              <div class="mon-stat-box"><div class="mon-stat-label">Rate Total</div><div class="mon-stat-value" id="statCostTotal" style="font-size:14px;">-</div></div>
+            </div>
           </div>
         </div>
       </div>

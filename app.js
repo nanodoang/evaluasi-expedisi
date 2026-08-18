@@ -1,13 +1,16 @@
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v34 (2026-07-06) — 2 update halaman Monitoring: (1) Tambah
- *          toggle "Minggu / Bulan / Tahun" di tiap section (DOT, Pemenuhan
- *          Armada, Cost Ratio) — dulu cuma tampilkan mingguan, sekarang
- *          bisa pindah ke rincian bulanan & tahunan juga tanpa fetch ulang
- *          (data 3 granularitas sudah ada dari backend, tinggal di-switch).
- *          (2) Chart dibuat lebih KECIL & ditaruh DI SAMPING tabel datanya
- *          (bukan full-width di atas tabel lagi) — layout lebih ringkas.
+ * VERSION: v35 (2026-07-06) — FIX PEMAHAMAN: "data mingguan/bulanan" itu
+ *          maksudnya 1 minggu/bulan TERTENTU (default: minggu/bulan ini —
+ *          yg paling terkini), BUKAN bandingkan banyak minggu/bulan
+ *          sekaligus dlm 1 chart. Sekarang tiap section (DOT, Pemenuhan
+ *          Armada, Cost Ratio) punya dropdown pilih periode spesifik +
+ *          kotak statistik (Hit/Miss/Total/%) utk periode itu SAJA. Ganti
+ *          periode di dropdown TIDAK reset toggle Minggu/Bulan/Tahun yg
+ *          lagi aktif.
  * VERSION HISTORY:
+ *   v34 — Tambah toggle Minggu/Bulan/Tahun + chart dibuat lebih kecil,
+ *        ditaruh di samping tabel (bukan full-width lagi).
  *   v33 — Periode Monitoring TERPISAH dari periode Evaluasi + tampilan
  *        dirombak lebih rapi (hero banner, kartu MTD/YTD berwarna, section
  *        card dgn ikon).
@@ -835,48 +838,95 @@ function renderMonitoringData(data, nama) {
   renderMonitoringAnalysis(data, nama);
 }
 
-function renderDotSection(gran) {
+// Isi dropdown pilihan periode (minggu/bulan/tahun), default ke periode
+// PALING BARU (= minggu/bulan ini, krn data sudah difilter sesuai rentang
+// tanggal yang dipilih user, jadi yang paling akhir = paling terkini).
+function populatePeriodSelect(selectEl, rows, previousValue) {
+  selectEl.innerHTML = rows.map(r => `<option value="${escapeHtml(r.periode)}">${escapeHtml(r.periode)}</option>`).join('');
+  if (previousValue && rows.some(r => r.periode === previousValue)) {
+    selectEl.value = previousValue;
+  } else if (rows.length) {
+    selectEl.value = rows[rows.length - 1].periode; // paling baru/terkini
+  }
+}
+
+function renderDotSection(gran, keepPeriod) {
   const data = currentMonitoringData;
   if (!data) return;
   const rows = data[gran].dot;
-  drawMonitoringBarChart('chartMonDot', rows.map(b => b.periode), rows.map(b => b.dot.hit), rows.map(b => b.dot.miss));
+  const selectEl = document.getElementById('periodSelectDot');
+  populatePeriodSelect(selectEl, rows, keepPeriod ? selectEl.value : null);
+  const selected = rows.find(r => r.periode === selectEl.value) || rows[rows.length - 1];
   document.getElementById('monDotNote').textContent = `Target ${data.target.dot}%`;
-  fillMonitoringTable('tableMonDot', rows.map(b => ({ periode: b.periode, ...b.dot })));
+  if (!selected) { drawMonitoringBarChart('chartMonDot', [], [], []); setStatBoxes('Dot', null); return; }
+  drawMonitoringBarChart('chartMonDot', [selected.periode], [selected.dot.hit], [selected.dot.miss]);
+  setStatBoxes('Dot', selected.dot);
 }
 
-function renderPASection(gran) {
+function renderPASection(gran, keepPeriod) {
   const data = currentMonitoringData;
   if (!data) return;
   const rows = data[gran].reliability;
-  drawMonitoringBarChart('chartMonPA', rows.map(b => b.periode), rows.map(b => b.reliability.hit), rows.map(b => b.reliability.miss));
+  const selectEl = document.getElementById('periodSelectPa');
+  populatePeriodSelect(selectEl, rows, keepPeriod ? selectEl.value : null);
+  const selected = rows.find(r => r.periode === selectEl.value) || rows[rows.length - 1];
   document.getElementById('monPANote').textContent = `Target ${data.target.reliability}%`;
-  fillMonitoringTable('tableMonPA', rows.map(b => ({ periode: b.periode, ...b.reliability })));
+  if (!selected) { drawMonitoringBarChart('chartMonPA', [], [], []); setStatBoxes('Pa', null); return; }
+  drawMonitoringBarChart('chartMonPA', [selected.periode], [selected.reliability.hit], [selected.reliability.miss]);
+  setStatBoxes('Pa', selected.reliability);
 }
 
-function renderCostSection(gran) {
+function setStatBoxes(prefix, stat) {
+  document.getElementById(`stat${prefix}Hit`).textContent = stat ? stat.hit : '-';
+  document.getElementById(`stat${prefix}Miss`).textContent = stat ? stat.miss : '-';
+  document.getElementById(`stat${prefix}Total`).textContent = stat ? stat.total : '-';
+  document.getElementById(`stat${prefix}Pct`).textContent = stat && stat.pct != null ? stat.pct.toFixed(1) + '%' : '-';
+}
+
+function renderCostSection(gran, keepPeriod) {
   const data = currentMonitoringData;
   if (!data) return;
   const rows = data[gran].cost;
-  drawCostBarChart('chartMonCost', rows.map(b => b.periode), rows.map(b => b.total.rate));
+  const selectEl = document.getElementById('periodSelectCost');
+  populatePeriodSelect(selectEl, rows, keepPeriod ? selectEl.value : null);
+  const selected = rows.find(r => r.periode === selectEl.value) || rows[rows.length - 1];
   document.getElementById('monCostNote').textContent = `Target ${fmtRupiah(data.target.cost.total)} (Total) · Darat ${fmtRupiah(data.target.cost.darat)} · Laut ${fmtRupiah(data.target.cost.laut)}`;
-  const costBody = document.querySelector('#tableMonCost tbody');
-  costBody.innerHTML = rows.map(b => `
-    <tr><td>${escapeHtml(b.periode)}</td><td>${b.total.qtyM3.toFixed(2)}</td><td style="font-weight:700;">${fmtRupiah(b.total.rate)}</td></tr>
-  `).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--grey);">Tidak ada data</td></tr>';
+  if (!selected) {
+    drawCostBarChart('chartMonCost', [], []);
+    document.getElementById('statCostQty').textContent = '-';
+    document.getElementById('statCostDarat').textContent = '-';
+    document.getElementById('statCostLaut').textContent = '-';
+    document.getElementById('statCostTotal').textContent = '-';
+    return;
+  }
+  drawCostBarChart('chartMonCost', ['Darat', 'Laut', 'Total'], [selected.darat.rate || 0, selected.laut.rate || 0, selected.total.rate || 0]);
+  document.getElementById('statCostQty').textContent = selected.total.qtyM3.toFixed(1);
+  document.getElementById('statCostDarat').textContent = fmtRupiah(selected.darat.rate);
+  document.getElementById('statCostLaut').textContent = fmtRupiah(selected.laut.rate);
+  document.getElementById('statCostTotal').textContent = fmtRupiah(selected.total.rate);
 }
 
 // Wire tombol toggle Minggu/Bulan/Tahun utk tiap section (DOT, PA, Cost)
+const monSectionFn = { dot: renderDotSection, pa: renderPASection, cost: renderCostSection };
 document.querySelectorAll('.mon-gran-toggle').forEach(toggleEl => {
   const target = toggleEl.dataset.target; // 'dot' | 'pa' | 'cost'
-  const renderFn = { dot: renderDotSection, pa: renderPASection, cost: renderCostSection }[target];
   toggleEl.querySelectorAll('.mon-gran-btn').forEach(btn => {
     btn.onclick = () => {
       toggleEl.querySelectorAll('.mon-gran-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      renderFn(btn.dataset.gran);
+      monSectionFn[target](btn.dataset.gran, false);
     };
   });
 });
+// Wire dropdown pilihan periode — pindah periode TANPA reset ke granularitas lain
+document.getElementById('periodSelectDot').onchange = () => renderDotSection(activeGran('dot'), true);
+document.getElementById('periodSelectPa').onchange = () => renderPASection(activeGran('pa'), true);
+document.getElementById('periodSelectCost').onchange = () => renderCostSection(activeGran('cost'), true);
+function activeGran(target) {
+  const toggleEl = document.querySelector(`.mon-gran-toggle[data-target="${target}"]`);
+  const activeBtn = toggleEl.querySelector('.mon-gran-btn.active');
+  return activeBtn ? activeBtn.dataset.gran : 'mingguan';
+}
 
 function drawMonitoringBarChart(canvasId, labels, hitData, missData) {
   const ctx = document.getElementById(canvasId).getContext('2d');
