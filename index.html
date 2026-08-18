@@ -78,20 +78,45 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
 .empty{text-align:center;padding:40px 20px;color:var(--grey);}
 .setup-box{background:#fff;border-radius:12px;padding:16px;margin-bottom:14px;font-size:13px;line-height:1.6;color:var(--grey);}
 .setup-box code{background:var(--light);padding:2px 6px;border-radius:4px;font-size:12px;color:var(--navy);}
+
+/* ===== Monitoring — desain lebih pro ===== */
+.mon-hero{background:linear-gradient(135deg,var(--navy),var(--deep));border-radius:14px;padding:16px 18px;margin-bottom:16px;color:#fff;}
+.mon-hero .mon-hero-title{font-size:15px;font-weight:700;margin:0 0 2px;}
+.mon-hero .mon-hero-sub{font-size:12px;color:rgba(255,255,255,.75);}
+.mon-kpi-card{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);border-left:4px solid var(--teal);}
+.mon-kpi-card .mon-kpi-label{font-size:11px;color:var(--grey);font-weight:700;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:5px;}
+.mon-kpi-card .mon-kpi-value{font-size:20px;font-weight:700;margin:6px 0 2px;color:var(--navy);}
+.mon-kpi-card .mon-kpi-value small{font-size:12px;font-weight:500;color:var(--grey);}
+.mon-kpi-card .mon-kpi-target{font-size:11px;color:var(--grey);}
+.mon-section{background:#fff;border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-top:3px solid var(--teal);}
+.mon-section-header{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+.mon-section-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--light);flex-shrink:0;}
+.mon-section-title{font-size:14px;font-weight:700;color:var(--navy);}
+.mon-section-note{font-size:11px;color:var(--grey);margin-top:1px;}
+.mon-subblock{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);}
+.mon-subblock-title{font-size:12px;font-weight:700;color:var(--grey);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;}
 </style>
+
 </head>
 <body>
 
 <header>
   <div class="eyebrow">PT. UNIFAM — Divisi Logistik & Transportasi</div>
-  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v32</span></h1>
-  <div class="period-bar">
+  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v33</span></h1>
+  <div class="period-bar" id="evaluasiPeriodBar">
     <input type="month" id="fromMonth">
     <span style="color:rgba(255,255,255,.6);font-size:12px;">s/d</span>
     <input type="month" id="toMonth">
     <button class="btn" id="loadBtn">Muat Data</button>
     <button class="btn secondary" id="demoBtn">Data Contoh</button>
     <button class="btn secondary" id="settingsBtn">⚙︎</button>
+  </div>
+  <div class="period-bar" id="monitoringPeriodBar" style="display:none;">
+    <input type="month" id="monFromMonth">
+    <span style="color:rgba(255,255,255,.6);font-size:12px;">s/d</span>
+    <input type="month" id="monToMonth">
+    <button class="btn" id="monLoadBtn">Muat Monitoring</button>
+    <button class="btn secondary" id="settingsBtn2">⚙︎</button>
   </div>
   <div class="period-bar" style="margin-top:8px;">
     <select id="expedisiSelect" style="flex:1;min-width:160px;background:rgba(255,255,255,.12);
@@ -214,33 +239,68 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
   </div>
 
   <div id="monitoringView" style="display:none;">
-    <div class="section-title">Monitoring — DOT, Pemenuhan Armada & Cost Ratio</div>
-    <div id="monitoringStatus" class="status">Pilih ekspedisi dari dropdown di atas, lalu tekan "Buka".</div>
+    <div id="monitoringStatus" class="status">Pilih ekspedisi dari dropdown di atas (opsional), lalu tekan "Muat Monitoring".</div>
     <div id="monitoringContent" style="display:none;">
 
-      <div id="monMTDYTDCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px;"></div>
-
-      <div class="chart-card"><h3>DOT per Minggu</h3><div id="monDotNote" class="card-sub" style="margin-bottom:6px;"></div><canvas id="chartMonDot" height="160"></canvas></div>
-      <div class="chart-card" style="overflow-x:auto;"><table class="miss-table" id="tableMonDot"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table></div>
-      <div class="chart-card" style="overflow-x:auto;">
-        <h3>Detail Kejadian Miss — DOT</h3>
-        <table class="miss-table" id="tableMonMissDot"><thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>ATA</th><th>Keterangan</th></tr></thead><tbody></tbody></table>
-        <div id="monMissDotEmpty" class="empty" style="display:none;padding:16px;">Tidak ada kejadian miss pada periode ini.</div>
+      <div class="mon-hero">
+        <div class="mon-hero-title" id="monHeroTitle">Monitoring — Semua Ekspedisi</div>
+        <div class="mon-hero-sub" id="monHeroSub">DOT, Pemenuhan Armada & Cost Ratio</div>
       </div>
 
-      <div class="chart-card"><h3>Pemenuhan Armada per Minggu</h3><div id="monPANote" class="card-sub" style="margin-bottom:6px;"></div><canvas id="chartMonPA" height="160"></canvas></div>
-      <div class="chart-card" style="overflow-x:auto;"><table class="miss-table" id="tableMonPA"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table></div>
-      <div class="chart-card" style="overflow-x:auto;">
-        <h3>Detail Komplain — Pemenuhan Armada</h3>
-        <table class="miss-table" id="tableMonMissPA"><thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>No Pol</th><th>Keterangan</th></tr></thead><tbody></tbody></table>
-        <div id="monMissPAEmpty" class="empty" style="display:none;padding:16px;">Tidak ada komplain pada periode ini.</div>
+      <div id="monMTDYTDCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:20px;"></div>
+
+      <div class="mon-section">
+        <div class="mon-section-header">
+          <div class="mon-section-icon">📦</div>
+          <div><div class="mon-section-title">DOT — Delivery on Time</div><div class="mon-section-note" id="monDotNote"></div></div>
+        </div>
+        <canvas id="chartMonDot" height="160"></canvas>
+        <div class="mon-subblock" style="overflow-x:auto;">
+          <table class="miss-table" id="tableMonDot"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div class="mon-subblock">
+          <div class="mon-subblock-title">Detail Kejadian Miss</div>
+          <div style="overflow-x:auto;">
+            <table class="miss-table" id="tableMonMissDot"><thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>ATA</th><th>Keterangan</th></tr></thead><tbody></tbody></table>
+          </div>
+          <div id="monMissDotEmpty" class="empty" style="display:none;padding:16px;">Tidak ada kejadian miss pada periode ini.</div>
+        </div>
       </div>
 
-      <div class="chart-card"><h3>Cost Ratio per Minggu</h3><div id="monCostNote" class="card-sub" style="margin-bottom:6px;"></div><canvas id="chartMonCost" height="160"></canvas></div>
-      <div class="chart-card" style="overflow-x:auto;"><table class="miss-table" id="tableMonCost"><thead><tr><th>Periode</th><th>Qty M3</th><th>Rate/M3</th></tr></thead><tbody></tbody></table></div>
+      <div class="mon-section">
+        <div class="mon-section-header">
+          <div class="mon-section-icon">🚛</div>
+          <div><div class="mon-section-title">Pemenuhan Armada</div><div class="mon-section-note" id="monPANote"></div></div>
+        </div>
+        <canvas id="chartMonPA" height="160"></canvas>
+        <div class="mon-subblock" style="overflow-x:auto;">
+          <table class="miss-table" id="tableMonPA"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div class="mon-subblock">
+          <div class="mon-subblock-title">Detail Komplain</div>
+          <div style="overflow-x:auto;">
+            <table class="miss-table" id="tableMonMissPA"><thead><tr><th>Bulan</th><th>Tujuan</th><th>ETA</th><th>No Pol</th><th>Keterangan</th></tr></thead><tbody></tbody></table>
+          </div>
+          <div id="monMissPAEmpty" class="empty" style="display:none;padding:16px;">Tidak ada komplain pada periode ini.</div>
+        </div>
+      </div>
 
-      <div class="section-title">Analisa</div>
-      <div class="chart-card" id="monAnalysisCard">
+      <div class="mon-section">
+        <div class="mon-section-header">
+          <div class="mon-section-icon">💰</div>
+          <div><div class="mon-section-title">Cost Ratio</div><div class="mon-section-note" id="monCostNote"></div></div>
+        </div>
+        <canvas id="chartMonCost" height="160"></canvas>
+        <div class="mon-subblock" style="overflow-x:auto;">
+          <table class="miss-table" id="tableMonCost"><thead><tr><th>Periode</th><th>Qty M3</th><th>Rate/M3</th></tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+
+      <div class="mon-section" style="border-top-color:var(--mint);">
+        <div class="mon-section-header">
+          <div class="mon-section-icon">📊</div>
+          <div><div class="mon-section-title">Analisa</div></div>
+        </div>
         <div id="monAnalysisContent" style="font-size:13px;line-height:1.7;color:var(--ink);"></div>
       </div>
 

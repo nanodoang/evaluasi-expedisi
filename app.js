@@ -1,10 +1,17 @@
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v32 (2026-07-06) — FIX: Ranking Pemenuhan Armada sekarang
- *          dibandingkan pakai TOTAL HIT (angka mentah), BUKAN persentase
- *          lagi — badge & chart-nya disesuaikan (skala otomatis, angka
- *          tanpa %). Perlu Code.gs v48+ (field "famHit" baru).
+ * VERSION: v33 (2026-07-06) — 2 update besar utk halaman Monitoring: (1)
+ *          Periode Monitoring SEKARANG TERPISAH dari periode Evaluasi
+ *          (monFromMonth/monToMonth, tombol "Muat Monitoring" sendiri) —
+ *          dulu berbagi input yang sama, ganti periode di 1 halaman ikut
+ *          mengubah periode halaman satunya. (2) Tampilan dirombak lebih
+ *          rapi: hero banner nama ekspedisi/periode, kartu MTD/YTD dgn
+ *          border warna status (hijau/merah vs target), tiap komponen
+ *          (DOT/Pemenuhan Armada/Cost Ratio) dikelompokkan jadi 1 kartu
+ *          section dgn ikon & sub-blok yang jelas.
  * VERSION HISTORY:
+ *   v32 — FIX: Ranking Pemenuhan Armada dibandingkan pakai TOTAL HIT
+ *        (angka mentah), BUKAN persentase lagi.
  *   v31 — Chart ranking DOT & Pemenuhan Armada tampilkan angka persentase
  *        langsung di atas tiap batang (dulu cuma lewat tooltip).
  *   v30 — TAMBAH FITUR: chart batang ranking DOT & Pemenuhan Armada di
@@ -84,6 +91,7 @@ document.getElementById('settingsBtn').onclick = () => {
   p.style.display = p.style.display === 'none' ? 'block' : 'none';
   document.getElementById('apiUrlInput').value = apiUrl;
 };
+document.getElementById('settingsBtn2').onclick = () => document.getElementById('settingsBtn').onclick();
 document.getElementById('saveApiUrl').onclick = () => {
   apiUrl = document.getElementById('apiUrlInput').value.trim();
   localStorage.setItem('evalEkspedisi_apiUrl', apiUrl);
@@ -269,6 +277,8 @@ document.getElementById('navEvaluasiBtn').onclick = () => {
   document.getElementById('monitoringView').style.display = 'none';
   document.getElementById('detailView').style.display = 'none';
   document.getElementById('listView').style.display = 'block';
+  document.getElementById('evaluasiPeriodBar').style.display = 'flex';
+  document.getElementById('monitoringPeriodBar').style.display = 'none';
 };
 
 document.getElementById('navMonitoringBtn').onclick = () => {
@@ -279,13 +289,14 @@ document.getElementById('navMonitoringBtn').onclick = () => {
   document.getElementById('listView').style.display = 'none';
   document.getElementById('detailView').style.display = 'none';
   document.getElementById('monitoringView').style.display = 'block';
+  document.getElementById('evaluasiPeriodBar').style.display = 'none';
+  document.getElementById('monitoringPeriodBar').style.display = 'flex';
 
-  // PENTING: kalau input tanggal (fromMonth/toMonth) masih kosong (belum
-  // pernah diisi di halaman Evaluasi), jangan kirim tanggal kosong ke
-  // server — itu bikin proses gagal. Kasih default: 3 bulan terakhir s/d
-  // bulan berjalan.
-  const fromEl = document.getElementById('fromMonth');
-  const toEl = document.getElementById('toMonth');
+  // Periode Monitoring TERPISAH dari periode Evaluasi (monFromMonth/
+  // monToMonth, bukan fromMonth/toMonth lagi) — supaya ganti periode di 1
+  // halaman tidak ikut mengubah periode halaman satunya.
+  const fromEl = document.getElementById('monFromMonth');
+  const toEl = document.getElementById('monToMonth');
   if (!fromEl.value || !toEl.value) {
     const now = new Date();
     const from3moAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
@@ -298,17 +309,28 @@ document.getElementById('navMonitoringBtn').onclick = () => {
   openMonitoring('ALL', fromEl.value, toEl.value);
 };
 
+document.getElementById('monLoadBtn').onclick = () => {
+  const fromEl = document.getElementById('monFromMonth');
+  const toEl = document.getElementById('monToMonth');
+  const sel = document.getElementById('expedisiSelect');
+  openMonitoring(sel.value || 'ALL', fromEl.value, toEl.value);
+};
+
 document.getElementById('goExpedisiBtn').onclick = () => {
   const sel = document.getElementById('expedisiSelect');
   const nama = sel.value;
-  const from = sel.dataset.from || document.getElementById('fromMonth').value;
-  const to = sel.dataset.to || document.getElementById('toMonth').value;
   if (currentPage === 'monitoring') {
     // Di halaman Monitoring, dropdown ini OPSIONAL — kalau kosong, tetap
-    // tampilkan gabungan SEMUA ekspedisi (bukan minta pilih dulu).
-    openMonitoring(nama || 'ALL', from, to);
+    // tampilkan gabungan SEMUA ekspedisi (bukan minta pilih dulu). Pakai
+    // periode Monitoring sendiri (monFromMonth/monToMonth), bukan punya
+    // Evaluasi.
+    const monFrom = document.getElementById('monFromMonth').value;
+    const monTo = document.getElementById('monToMonth').value;
+    openMonitoring(nama || 'ALL', monFrom, monTo);
     return;
   }
+  const from = sel.dataset.from || document.getElementById('fromMonth').value;
+  const to = sel.dataset.to || document.getElementById('toMonth').value;
   if (!nama) { alert('Pilih ekspedisi dulu dari daftar dropdown (muat data / data contoh dulu kalau dropdown masih kosong).'); return; }
   openDetail(nama, from, to);
 };
@@ -773,18 +795,27 @@ function fmtRupiah(v) {
 }
 
 function renderMonitoringData(data, nama) {
+  // Hero banner: nama ekspedisi (atau "Semua Ekspedisi") + rentang periode
+  const heroTitle = data.isAll ? 'Monitoring — Semua Ekspedisi' : `Monitoring — ${data.namaTampil || nama}`;
+  document.getElementById('monHeroTitle').textContent = heroTitle;
+  const periodeTxt = data.periode && data.periode.from ? `Periode dipilih: ${data.periode.from} s/d ${data.periode.to}` : 'DOT, Pemenuhan Armada & Cost Ratio';
+  document.getElementById('monHeroSub').textContent = periodeTxt;
+
   // Kartu MTD/YTD
   const cardsEl = document.getElementById('monMTDYTDCards');
-  function card(label, mtdVal, ytdVal, target, isMoney) {
+  function card(icon, label, mtdVal, ytdVal, target, isMoney) {
     const fmt = isMoney ? fmtRupiah : (v => v == null ? '-' : v.toFixed(1) + '%');
-    return `<div class="kpi-card"><div class="label">${escapeHtml(label)}</div>
-      <div class="value" style="font-size:18px;">${fmt(mtdVal)} <span style="font-size:12px;color:var(--grey);font-weight:400;">/ ${fmt(ytdVal)}</span></div>
-      <div class="target">MTD / YTD · Target ${isMoney ? fmtRupiah(target) : target + '%'}</div></div>`;
+    const ok = mtdVal == null ? null : (isMoney ? mtdVal <= target : mtdVal >= target);
+    const borderColor = ok == null ? COLORS.grey : (ok ? COLORS.green : COLORS.red);
+    return `<div class="mon-kpi-card" style="border-left-color:#${borderColor};">
+      <div class="mon-kpi-label">${icon} ${escapeHtml(label)}</div>
+      <div class="mon-kpi-value">${fmt(mtdVal)} <small>/ ${fmt(ytdVal)}</small></div>
+      <div class="mon-kpi-target">MTD / YTD · Target ${isMoney ? fmtRupiah(target) : target + '%'}</div></div>`;
   }
   cardsEl.innerHTML =
-    card('DOT', data.mtd.dot.pct, data.ytd.dot.pct, data.target.dot, false) +
-    card('Pemenuhan Armada', data.mtd.reliability.pct, data.ytd.reliability.pct, data.target.reliability, false) +
-    card('Cost Ratio', data.mtd.cost.rate, data.ytd.cost.rate, data.target.cost.total, true);
+    card('📦', 'DOT', data.mtd.dot.pct, data.ytd.dot.pct, data.target.dot, false) +
+    card('🚛', 'Pemenuhan Armada', data.mtd.reliability.pct, data.ytd.reliability.pct, data.target.reliability, false) +
+    card('💰', 'Cost Ratio', data.mtd.cost.rate, data.ytd.cost.rate, data.target.cost.total, true);
 
   // Chart + tabel DOT (mingguan)
   drawMonitoringBarChart('chartMonDot', data.mingguan.dot.map(b => b.periode), data.mingguan.dot.map(b => b.dot.hit), data.mingguan.dot.map(b => b.dot.miss));
