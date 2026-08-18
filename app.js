@@ -1,15 +1,16 @@
 /* ============================================================================
  * Evaluasi Kinerja Ekspedisi — app.js
- * VERSION: v33 (2026-07-06) — 2 update besar utk halaman Monitoring: (1)
- *          Periode Monitoring SEKARANG TERPISAH dari periode Evaluasi
- *          (monFromMonth/monToMonth, tombol "Muat Monitoring" sendiri) —
- *          dulu berbagi input yang sama, ganti periode di 1 halaman ikut
- *          mengubah periode halaman satunya. (2) Tampilan dirombak lebih
- *          rapi: hero banner nama ekspedisi/periode, kartu MTD/YTD dgn
- *          border warna status (hijau/merah vs target), tiap komponen
- *          (DOT/Pemenuhan Armada/Cost Ratio) dikelompokkan jadi 1 kartu
- *          section dgn ikon & sub-blok yang jelas.
+ * VERSION: v34 (2026-07-06) — 2 update halaman Monitoring: (1) Tambah
+ *          toggle "Minggu / Bulan / Tahun" di tiap section (DOT, Pemenuhan
+ *          Armada, Cost Ratio) — dulu cuma tampilkan mingguan, sekarang
+ *          bisa pindah ke rincian bulanan & tahunan juga tanpa fetch ulang
+ *          (data 3 granularitas sudah ada dari backend, tinggal di-switch).
+ *          (2) Chart dibuat lebih KECIL & ditaruh DI SAMPING tabel datanya
+ *          (bukan full-width di atas tabel lagi) — layout lebih ringkas.
  * VERSION HISTORY:
+ *   v33 — Periode Monitoring TERPISAH dari periode Evaluasi + tampilan
+ *        dirombak lebih rapi (hero banner, kartu MTD/YTD berwarna, section
+ *        card dgn ikon).
  *   v32 — FIX: Ranking Pemenuhan Armada dibandingkan pakai TOTAL HIT
  *        (angka mentah), BUKAN persentase lagi.
  *   v31 — Chart ranking DOT & Pemenuhan Armada tampilkan angka persentase
@@ -794,7 +795,10 @@ function fmtRupiah(v) {
   return v == null ? '-' : 'Rp' + Math.round(v).toLocaleString('id-ID');
 }
 
+let currentMonitoringData = null; // disimpan supaya toggle Minggu/Bulan/Tahun bisa render ulang tanpa fetch lagi
+
 function renderMonitoringData(data, nama) {
+  currentMonitoringData = data;
   // Hero banner: nama ekspedisi (atau "Semua Ekspedisi") + rentang periode
   const heroTitle = data.isAll ? 'Monitoring — Semua Ekspedisi' : `Monitoring — ${data.namaTampil || nama}`;
   document.getElementById('monHeroTitle').textContent = heroTitle;
@@ -817,23 +821,10 @@ function renderMonitoringData(data, nama) {
     card('🚛', 'Pemenuhan Armada', data.mtd.reliability.pct, data.ytd.reliability.pct, data.target.reliability, false) +
     card('💰', 'Cost Ratio', data.mtd.cost.rate, data.ytd.cost.rate, data.target.cost.total, true);
 
-  // Chart + tabel DOT (mingguan)
-  drawMonitoringBarChart('chartMonDot', data.mingguan.dot.map(b => b.periode), data.mingguan.dot.map(b => b.dot.hit), data.mingguan.dot.map(b => b.dot.miss));
-  document.getElementById('monDotNote').textContent = `Target ${data.target.dot}%`;
-  fillMonitoringTable('tableMonDot', data.mingguan.dot.map(b => ({ periode: b.periode, ...b.dot })));
-
-  // Chart + tabel Pemenuhan Armada (mingguan)
-  drawMonitoringBarChart('chartMonPA', data.mingguan.reliability.map(b => b.periode), data.mingguan.reliability.map(b => b.reliability.hit), data.mingguan.reliability.map(b => b.reliability.miss));
-  document.getElementById('monPANote').textContent = `Target ${data.target.reliability}%`;
-  fillMonitoringTable('tableMonPA', data.mingguan.reliability.map(b => ({ periode: b.periode, ...b.reliability })));
-
-  // Chart + tabel Cost Ratio (mingguan, pakai total)
-  drawCostBarChart('chartMonCost', data.mingguan.cost.map(b => b.periode), data.mingguan.cost.map(b => b.total.rate));
-  document.getElementById('monCostNote').textContent = `Target ${fmtRupiah(data.target.cost.total)} (Total) · Darat ${fmtRupiah(data.target.cost.darat)} · Laut ${fmtRupiah(data.target.cost.laut)}`;
-  const costBody = document.querySelector('#tableMonCost tbody');
-  costBody.innerHTML = data.mingguan.cost.map(b => `
-    <tr><td>${escapeHtml(b.periode)}</td><td>${b.total.qtyM3.toFixed(2)}</td><td style="font-weight:700;">${fmtRupiah(b.total.rate)}</td></tr>
-  `).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--grey);">Tidak ada data</td></tr>';
+  // Render tiap section pakai granularitas default (Minggu)
+  renderDotSection('mingguan');
+  renderPASection('mingguan');
+  renderCostSection('mingguan');
 
   // Detail miss DOT
   fillMonitoringMissTable('tableMonMissDot', 'monMissDotEmpty', data.missDetailDot, ['bulan', 'tujuan', 'eta', 'ata', 'keterangan']);
@@ -843,6 +834,49 @@ function renderMonitoringData(data, nama) {
   // Analisa
   renderMonitoringAnalysis(data, nama);
 }
+
+function renderDotSection(gran) {
+  const data = currentMonitoringData;
+  if (!data) return;
+  const rows = data[gran].dot;
+  drawMonitoringBarChart('chartMonDot', rows.map(b => b.periode), rows.map(b => b.dot.hit), rows.map(b => b.dot.miss));
+  document.getElementById('monDotNote').textContent = `Target ${data.target.dot}%`;
+  fillMonitoringTable('tableMonDot', rows.map(b => ({ periode: b.periode, ...b.dot })));
+}
+
+function renderPASection(gran) {
+  const data = currentMonitoringData;
+  if (!data) return;
+  const rows = data[gran].reliability;
+  drawMonitoringBarChart('chartMonPA', rows.map(b => b.periode), rows.map(b => b.reliability.hit), rows.map(b => b.reliability.miss));
+  document.getElementById('monPANote').textContent = `Target ${data.target.reliability}%`;
+  fillMonitoringTable('tableMonPA', rows.map(b => ({ periode: b.periode, ...b.reliability })));
+}
+
+function renderCostSection(gran) {
+  const data = currentMonitoringData;
+  if (!data) return;
+  const rows = data[gran].cost;
+  drawCostBarChart('chartMonCost', rows.map(b => b.periode), rows.map(b => b.total.rate));
+  document.getElementById('monCostNote').textContent = `Target ${fmtRupiah(data.target.cost.total)} (Total) · Darat ${fmtRupiah(data.target.cost.darat)} · Laut ${fmtRupiah(data.target.cost.laut)}`;
+  const costBody = document.querySelector('#tableMonCost tbody');
+  costBody.innerHTML = rows.map(b => `
+    <tr><td>${escapeHtml(b.periode)}</td><td>${b.total.qtyM3.toFixed(2)}</td><td style="font-weight:700;">${fmtRupiah(b.total.rate)}</td></tr>
+  `).join('') || '<tr><td colspan="3" style="text-align:center;color:var(--grey);">Tidak ada data</td></tr>';
+}
+
+// Wire tombol toggle Minggu/Bulan/Tahun utk tiap section (DOT, PA, Cost)
+document.querySelectorAll('.mon-gran-toggle').forEach(toggleEl => {
+  const target = toggleEl.dataset.target; // 'dot' | 'pa' | 'cost'
+  const renderFn = { dot: renderDotSection, pa: renderPASection, cost: renderCostSection }[target];
+  toggleEl.querySelectorAll('.mon-gran-btn').forEach(btn => {
+    btn.onclick = () => {
+      toggleEl.querySelectorAll('.mon-gran-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderFn(btn.dataset.gran);
+    };
+  });
+});
 
 function drawMonitoringBarChart(canvasId, labels, hitData, missData) {
   const ctx = document.getElementById(canvasId).getContext('2d');
@@ -856,7 +890,11 @@ function drawMonitoringBarChart(canvasId, labels, hitData, missData) {
         { label: 'Miss', data: missData, backgroundColor: '#' + COLORS.red, borderRadius: 4 }
       ]
     },
-    options: { responsive: true, plugins: { legend: { display: true, labels: { font: { size: 10 } } }, datalabels: { display: false } }, scales: { y: { beginAtZero: true } } }
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: true, labels: { font: { size: 10 }, boxWidth: 10 } }, datalabels: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { font: { size: 9 } } }, x: { ticks: { font: { size: 9 }, maxRotation: 45 } } }
+    }
   });
 }
 
@@ -866,7 +904,11 @@ function drawCostBarChart(canvasId, labels, rateData) {
   chartInstances[canvasId] = new Chart(ctx, {
     type: 'bar',
     data: { labels, datasets: [{ label: 'Rate/M3', data: rateData, backgroundColor: '#' + COLORS.teal, borderRadius: 4 }] },
-    options: { responsive: true, plugins: { legend: { display: false }, datalabels: { display: false } }, scales: { y: { beginAtZero: true } } }
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, datalabels: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { font: { size: 9 } } }, x: { ticks: { font: { size: 9 }, maxRotation: 45 } } }
+    }
   });
 }
 

@@ -95,6 +95,12 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
 .mon-section-note{font-size:11px;color:var(--grey);margin-top:1px;}
 .mon-subblock{margin-top:14px;padding-top:14px;border-top:1px solid var(--line);}
 .mon-subblock-title{font-size:12px;font-weight:700;color:var(--grey);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;}
+.mon-gran-toggle{display:flex;gap:4px;margin-bottom:10px;}
+.mon-gran-btn{flex:0 0 auto;padding:5px 12px;border-radius:20px;border:1px solid var(--line);background:#fff;color:var(--grey);font-size:12px;font-weight:600;cursor:pointer;}
+.mon-gran-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+.mon-chart-row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;}
+.mon-chart-col{flex:1 1 220px;min-width:180px;max-width:280px;}
+.mon-table-col{flex:2 1 260px;min-width:220px;overflow-x:auto;}
 </style>
 
 </head>
@@ -102,7 +108,7 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
 
 <header>
   <div class="eyebrow">PT. UNIFAM — Divisi Logistik & Transportasi</div>
-  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v33</span></h1>
+  <h1 id="pageTitle">Evaluasi Kinerja Ekspedisi <span style="font-size:11px;opacity:.5;font-weight:400;">app v34</span></h1>
   <div class="period-bar" id="evaluasiPeriodBar">
     <input type="month" id="fromMonth">
     <span style="color:rgba(255,255,255,.6);font-size:12px;">s/d</span>
@@ -254,9 +260,16 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
           <div class="mon-section-icon">📦</div>
           <div><div class="mon-section-title">DOT — Delivery on Time</div><div class="mon-section-note" id="monDotNote"></div></div>
         </div>
-        <canvas id="chartMonDot" height="160"></canvas>
-        <div class="mon-subblock" style="overflow-x:auto;">
-          <table class="miss-table" id="tableMonDot"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table>
+        <div class="mon-gran-toggle" data-target="dot">
+          <button class="mon-gran-btn active" data-gran="mingguan">Minggu</button>
+          <button class="mon-gran-btn" data-gran="bulanan">Bulan</button>
+          <button class="mon-gran-btn" data-gran="tahunan">Tahun</button>
+        </div>
+        <div class="mon-chart-row">
+          <div class="mon-chart-col"><canvas id="chartMonDot" height="180"></canvas></div>
+          <div class="mon-table-col">
+            <table class="miss-table" id="tableMonDot"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table>
+          </div>
         </div>
         <div class="mon-subblock">
           <div class="mon-subblock-title">Detail Kejadian Miss</div>
@@ -272,9 +285,16 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
           <div class="mon-section-icon">🚛</div>
           <div><div class="mon-section-title">Pemenuhan Armada</div><div class="mon-section-note" id="monPANote"></div></div>
         </div>
-        <canvas id="chartMonPA" height="160"></canvas>
-        <div class="mon-subblock" style="overflow-x:auto;">
-          <table class="miss-table" id="tableMonPA"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table>
+        <div class="mon-gran-toggle" data-target="pa">
+          <button class="mon-gran-btn active" data-gran="mingguan">Minggu</button>
+          <button class="mon-gran-btn" data-gran="bulanan">Bulan</button>
+          <button class="mon-gran-btn" data-gran="tahunan">Tahun</button>
+        </div>
+        <div class="mon-chart-row">
+          <div class="mon-chart-col"><canvas id="chartMonPA" height="180"></canvas></div>
+          <div class="mon-table-col">
+            <table class="miss-table" id="tableMonPA"><thead><tr><th>Periode</th><th>Hit</th><th>Miss</th><th>Total</th><th>%</th></tr></thead><tbody></tbody></table>
+          </div>
         </div>
         <div class="mon-subblock">
           <div class="mon-subblock-title">Detail Komplain</div>
@@ -290,9 +310,16 @@ table.miss-table td{padding:8px 6px;border-bottom:1px solid var(--line);}
           <div class="mon-section-icon">💰</div>
           <div><div class="mon-section-title">Cost Ratio</div><div class="mon-section-note" id="monCostNote"></div></div>
         </div>
-        <canvas id="chartMonCost" height="160"></canvas>
-        <div class="mon-subblock" style="overflow-x:auto;">
+        <div class="mon-gran-toggle" data-target="cost">
+          <button class="mon-gran-btn active" data-gran="mingguan">Minggu</button>
+          <button class="mon-gran-btn" data-gran="bulanan">Bulan</button>
+          <button class="mon-gran-btn" data-gran="tahunan">Tahun</button>
+        </div>
+        <div class="mon-chart-row">
+          <div class="mon-chart-col"><canvas id="chartMonCost" height="180"></canvas></div>
+          <div class="mon-table-col">
           <table class="miss-table" id="tableMonCost"><thead><tr><th>Periode</th><th>Qty M3</th><th>Rate/M3</th></tr></thead><tbody></tbody></table>
+          </div>
         </div>
       </div>
 
